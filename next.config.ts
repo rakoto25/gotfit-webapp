@@ -1,11 +1,23 @@
 import type { NextConfig } from "next";
 
-const basePath =
-  process.env.NEXT_PUBLIC_BASE_PATH ??
-  (process.env.NODE_ENV === "production" ? "/webapp" : "");
-
 const nextConfig: NextConfig = {
-  basePath: basePath || undefined,
+  reactCompiler: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "api.gotfit.tech",
+      },
+      {
+        protocol: "https",
+        hostname: "admin.gotfit.tech",
+      },
+      {
+        protocol: "https",
+        hostname: "gotfit.tech",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
