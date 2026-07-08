@@ -46,7 +46,12 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_KEY
   : null;
 
 function getToday() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -59,6 +64,7 @@ function getCoachName(annonce?: Annonce | null) {
 
 function getLocation(annonce?: Annonce | null) {
   if (annonce?.is_online) return "Séance en ligne";
+
   return annonce?.city || annonce?.location || annonce?.address || "Lieu à confirmer";
 }
 
@@ -68,6 +74,7 @@ function getAnnonceOwnerId(annonce: Annonce) {
 
 function isVisibleAnnonce(annonce: Annonce) {
   const status = annonce.status?.toLowerCase();
+
   return !status || ["valide", "approved", "active", "published"].includes(status);
 }
 
@@ -108,6 +115,11 @@ function CheckoutForm({
       return;
     }
 
+    if (!paymentComplete) {
+      setError("Veuillez compléter les informations de paiement avant de confirmer.");
+      return;
+    }
+
     try {
       setProcessing(true);
       setError("");
@@ -143,7 +155,9 @@ function CheckoutForm({
     }
   }
 
-  const canPay = Boolean(stripe && elements && elementReady && !processing);
+  const canPay = Boolean(
+    stripe && elements && elementReady && paymentComplete && !processing
+  );
 
   return (
     <form onSubmit={handlePayment} className="grid gap-5">
@@ -177,13 +191,9 @@ function CheckoutForm({
           onChange={(event) => {
             setPaymentComplete(event.complete);
 
-            if (event.error?.message) {
-              setError(event.error.message);
-              return;
-            }
-
             setError((currentError) =>
-              currentError === "Le formulaire de paiement est encore en chargement. Veuillez patienter."
+              currentError ===
+              "Le formulaire de paiement est encore en chargement. Veuillez patienter."
                 ? ""
                 : currentError
             );
@@ -564,7 +574,7 @@ function ReservationContent() {
                         max={20}
                         value={guests}
                         onChange={(event) =>
-                          setGuests(Math.max(1, Number(event.target.value)))
+                          setGuests(Math.max(1, Number(event.target.value) || 1))
                         }
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none focus:border-orange-400"
                       />
