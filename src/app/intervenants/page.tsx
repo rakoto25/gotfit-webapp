@@ -19,162 +19,52 @@ import {
   Star,
   UserRound,
   UsersRound,
+  Video,
   X,
 } from "lucide-react";
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { getToken, hasRole } from "@/lib/auth";
-import type { User } from "@/types/auth";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://187.77.181.212/api";
-
-type Intervenant = User & {
-  phone?: string | null;
-  address?: string | null;
-  bio?: string | null;
-  photo?: string | null;
-  photo_url?: string | null;
-  cover_photo?: string | null;
-  cover_photo_url?: string | null;
-  account_status?: string | null;
-  speciality?: string | null;
-  specialty?: string | null;
-  service?: string | null;
-  services?: string[] | null;
-  rating?: number | string | null;
-  reviews_count?: number | string | null;
-  city?: string | null;
-  location?: string | null;
-  created_at?: string;
-};
-
-type ApiIntervenantsResponse = {
-  success?: boolean;
-  message?: string;
-  data?: Intervenant[];
-};
-
-const specialties = [
-  "Tous",
-  "Coaching sportif",
-  "Pilates",
-  "Yoga",
-  "Nutrition",
-  "Réathlétisation",
-  "Bien-être",
-];
+import { getToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/api-config";
+import {
+  getCoachDescription,
+  getCoachExperience,
+  getCoachSpeciality,
+  getIntervenantPhoto,
+  getIntervenantVideo,
+  getLocation,
+  getRating,
+  getReviewsCount,
+  getSpecialityOptions,
+  getStatusLabel,
+  isPublicIntervenant,
+  normalizeIntervenants,
+  type ApiIntervenantsResponse,
+  type Intervenant,
+} from "@/lib/intervenants";
 
 const sortOptions = [
-  {
-    label: "Recommandés",
-    value: "recommended",
-  },
-  {
-    label: "Mieux notés",
-    value: "rating",
-  },
-  {
-    label: "Nom A-Z",
-    value: "name",
-  },
+  { label: "Recommandés", value: "recommended" },
+  { label: "Mieux notés", value: "rating" },
+  { label: "Nom A-Z", value: "name" },
+  { label: "Expérience", value: "experience" },
 ];
 
-function normalizeArray(payload: ApiIntervenantsResponse | Intervenant[] | null) {
-  if (!payload) return [];
-
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload.data)) {
-    return payload.data;
-  }
-
-  return [];
+function buildAuthUrl(targetUrl: string) {
+  return `/auth/login?redirect=${encodeURIComponent(targetUrl)}`;
 }
 
-function getFullUrl(url?: string | null) {
-  if (!url) return "";
-
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
-
-  const base = API_BASE_URL.replace(/\/api\/?$/, "");
-
-  return `${base}${url.startsWith("/") ? url : `/${url}`}`;
+function buildReservationUrl(intervenant: Intervenant) {
+  return `/reservation?intervenant_id=${intervenant.id}`;
 }
 
-function getIntervenantPhoto(intervenant: Intervenant) {
-  return getFullUrl(intervenant.photo_url || intervenant.photo);
+function buildMessageUrl(intervenant: Intervenant) {
+  return `/messages?user_id=${intervenant.id}`;
 }
 
-function getSpeciality(intervenant: Intervenant) {
-  return (
-    intervenant.speciality ||
-    intervenant.specialty ||
-    intervenant.service ||
-    intervenant.services?.[0] ||
-    "Bien-être"
-  );
-}
-
-function getLocation(intervenant: Intervenant) {
-  return (
-    intervenant.city ||
-    intervenant.location ||
-    intervenant.address ||
-    "Localisation non définie"
-  );
-}
-
-function getRating(intervenant: Intervenant) {
-  const value = Number(intervenant.rating ?? 4.8);
-
-  if (Number.isNaN(value)) {
-    return 4.8;
-  }
-
-  return value;
-}
-
-function getReviewsCount(intervenant: Intervenant) {
-  const value = Number(intervenant.reviews_count ?? 0);
-
-  if (Number.isNaN(value)) {
-    return 0;
-  }
-
-  return value;
-}
-
-function getStatusLabel(status?: string | null) {
-  if (!status) return "Profil disponible";
-
-  const labels: Record<string, string> = {
-    approved: "Profil vérifié",
-    pending: "En attente",
-    rejected: "Refusé",
-    active: "Actif",
-    inactive: "Inactif",
-  };
-
-  return labels[status] || status;
-}
-
-function isIntervenant(user: Intervenant) {
-  if (hasRole(user, "intervenant")) return true;
-
-  const roles = user.roles || [];
-
-  return roles.some((role: any) => {
-    const name = String(role?.name || "").toLowerCase();
-    const slug = String(role?.slug || "").toLowerCase();
-
-    return name.includes("intervenant") || slug.includes("intervenant");
-  });
+function getProtectedUrl(targetUrl: string) {
+  return getToken() ? targetUrl : buildAuthUrl(targetUrl);
 }
 
 async function fetchIntervenants(): Promise<Intervenant[]> {
@@ -194,22 +84,16 @@ async function fetchIntervenants(): Promise<Intervenant[]> {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error(`Erreur API intervenants : ${response.status}`);
-  }
-
   const payload = (await response.json().catch(() => null)) as
     | ApiIntervenantsResponse
     | Intervenant[]
     | null;
 
-  const items = normalizeArray(payload);
+  if (!response.ok) {
+    throw new Error((!Array.isArray(payload) ? payload?.message : undefined) || `Erreur API intervenants : ${response.status}`);
+  }
 
-  return items.filter((item) => {
-    const status = String(item.account_status || "").toLowerCase();
-
-    return isIntervenant(item) && status === "approved";
-  });
+  return normalizeIntervenants(payload).filter(isPublicIntervenant);
 }
 
 export default function IntervenantsPage() {
@@ -218,67 +102,102 @@ export default function IntervenantsPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const [search, setSearch] = useState("");
-  const [selectedSpecialty, setSelectedSpecialty] = useState("Tous");
+  const [selectedSpeciality, setSelectedSpeciality] = useState("Tous");
   const [sortBy, setSortBy] = useState("recommended");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
+    async function loadIntervenants() {
+      try {
+        setLoading(true);
+        setErrorMessage("");
+
+        const items = await fetchIntervenants();
+
+        if (mounted) {
+          setIntervenants(items);
+        }
+      } catch (error) {
+        console.error("Erreur chargement intervenants:", error);
+
+        if (mounted) {
+          setIntervenants([]);
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Impossible de charger les intervenants depuis l’API pour le moment."
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
     loadIntervenants();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  async function loadIntervenants() {
-    try {
-      setLoading(true);
-      setErrorMessage("");
-
-      const items = await fetchIntervenants();
-
-      setIntervenants(items);
-    } catch (error) {
-      console.error("Erreur chargement intervenants:", error);
-      setIntervenants([]);
-      setErrorMessage(
-        "Impossible de charger les intervenants depuis l’API pour le moment."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function resetFilters() {
-    setSearch("");
-    setSelectedSpecialty("Tous");
-    setSortBy("recommended");
-    setVerifiedOnly(false);
-  }
+  const specialityOptions = useMemo(
+    () => getSpecialityOptions(intervenants),
+    [intervenants]
+  );
 
   const filteredIntervenants = useMemo(() => {
     const cleanSearch = search.trim().toLowerCase();
 
     const filtered = intervenants.filter((intervenant) => {
-      const speciality = getSpeciality(intervenant);
+      const speciality = getCoachSpeciality(intervenant);
+      const description = getCoachDescription(intervenant);
       const location = getLocation(intervenant);
+      const experience = getCoachExperience(intervenant) || "";
 
       const matchesSearch =
         !cleanSearch ||
-        intervenant.name?.toLowerCase().includes(cleanSearch) ||
-        intervenant.email?.toLowerCase().includes(cleanSearch) ||
-        intervenant.bio?.toLowerCase().includes(cleanSearch) ||
-        speciality.toLowerCase().includes(cleanSearch) ||
-        location.toLowerCase().includes(cleanSearch);
+        [
+          intervenant.name,
+          intervenant.email,
+          speciality,
+          description,
+          location,
+          experience,
+          intervenant.coach_title,
+          intervenant.coach_certifications,
+          intervenant.coach_languages,
+        ]
+          .flat()
+          .join(" ")
+          .toLowerCase()
+          .includes(cleanSearch);
 
-      const matchesSpecialty =
-        selectedSpecialty === "Tous" ||
-        speciality.toLowerCase().includes(selectedSpecialty.toLowerCase());
+      const matchesSpeciality =
+        selectedSpeciality === "Tous" || speciality === selectedSpeciality;
 
       const matchesVerified =
-        !verifiedOnly || intervenant.account_status === "approved";
+        !verifiedOnly ||
+        ["approved", "valide", "validé", "active"].includes(
+          String(intervenant.account_status || "").toLowerCase()
+        );
 
-      return matchesSearch && matchesSpecialty && matchesVerified;
+      return matchesSearch && matchesSpeciality && matchesVerified;
     });
 
     if (sortBy === "rating") {
       filtered.sort((a, b) => getRating(b) - getRating(a));
+    }
+
+    if (sortBy === "experience") {
+      filtered.sort(
+        (a, b) =>
+          Number(b.coach_experience_years || 0) -
+          Number(a.coach_experience_years || 0)
+      );
     }
 
     if (sortBy === "name") {
@@ -288,7 +207,14 @@ export default function IntervenantsPage() {
     }
 
     return filtered;
-  }, [intervenants, search, selectedSpecialty, sortBy, verifiedOnly]);
+  }, [intervenants, search, selectedSpeciality, sortBy, verifiedOnly]);
+
+  function resetFilters() {
+    setSearch("");
+    setSelectedSpeciality("Tous");
+    setSortBy("recommended");
+    setVerifiedOnly(false);
+  }
 
   return (
     <>
@@ -313,9 +239,9 @@ export default function IntervenantsPage() {
                 </h1>
 
                 <p className="mt-6 max-w-2xl text-base font-medium leading-8 text-slate-600 sm:text-lg">
-                  Comparez les profils, spécialités, disponibilités et avis pour
-                  réserver le bon accompagnement : coaching, Pilates, yoga,
-                  nutrition ou suivi personnalisé.
+                  Les spécialités, titres, expériences, certifications, langues et
+                  vidéos de présentation viennent maintenant directement de l’API
+                  Laravel. Plus de liste de spécialités codée en dur côté front.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -341,10 +267,10 @@ export default function IntervenantsPage() {
                   <div className="mb-6 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-black uppercase tracking-[0.18em] text-orange-600">
-                        Recherche rapide
+                        Priorité 5
                       </p>
                       <h2 className="mt-2 text-3xl font-black tracking-tight">
-                        Sélection premium
+                        Profil coach complet
                       </h2>
                     </div>
 
@@ -358,12 +284,13 @@ export default function IntervenantsPage() {
                       <div className="mb-3 flex items-center gap-3">
                         <BadgeCheck className="text-orange-600" size={22} />
                         <strong className="text-sm font-black">
-                          Profils vérifiés
+                          Profils enrichis depuis l’API
                         </strong>
                       </div>
                       <p className="text-sm font-semibold leading-7 text-slate-500">
-                        Des intervenants qualifiés pour un accompagnement clair,
-                        sécurisé et personnalisé.
+                        Les cartes affichent coach_speciality,
+                        coach_experience_years, coach_certifications,
+                        coach_languages et la vidéo si elle existe.
                       </p>
                     </div>
 
@@ -379,26 +306,19 @@ export default function IntervenantsPage() {
 
                       <div className="rounded-2xl bg-orange-100 p-4">
                         <strong className="block text-2xl font-black text-orange-700">
-                          {new Set(intervenants.map(getSpeciality)).size}
+                          {Math.max(specialityOptions.length - 1, 0)}
                         </strong>
                         <span className="mt-1 block text-xs font-semibold text-slate-500">
-                          Services
+                          Spécialités API
                         </span>
                       </div>
 
                       <div className="rounded-2xl bg-orange-100 p-4">
                         <strong className="block text-2xl font-black text-orange-700">
-                          {intervenants.length
-                            ? (
-                                intervenants.reduce(
-                                  (total, item) => total + getRating(item),
-                                  0
-                                ) / intervenants.length
-                              ).toFixed(1)
-                            : "0.0"}
+                          {intervenants.filter((item) => getIntervenantVideo(item)).length}
                         </strong>
                         <span className="mt-1 block text-xs font-semibold text-slate-500">
-                          Note moy.
+                          Vidéos
                         </span>
                       </div>
                     </div>
@@ -418,20 +338,18 @@ export default function IntervenantsPage() {
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Rechercher par nom, service, ville..."
+                    placeholder="Rechercher par nom, spécialité, ville, certification..."
                     className="w-full bg-transparent text-sm font-bold text-slate-800 outline-none placeholder:text-slate-400"
                   />
                 </div>
 
                 <div className="relative">
                   <select
-                    value={selectedSpecialty}
-                    onChange={(event) =>
-                      setSelectedSpecialty(event.target.value)
-                    }
+                    value={selectedSpeciality}
+                    onChange={(event) => setSelectedSpeciality(event.target.value)}
                     className="h-full w-full appearance-none rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 pr-10 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-500"
                   >
-                    {specialties.map((item) => (
+                    {specialityOptions.map((item) => (
                       <option key={item} value={item}>
                         {item}
                       </option>
@@ -483,7 +401,7 @@ export default function IntervenantsPage() {
                   {filteredIntervenants.length} résultat(s) trouvé(s)
                 </div>
 
-                {(search || selectedSpecialty !== "Tous" || verifiedOnly) && (
+                {(search || selectedSpeciality !== "Tous" || verifiedOnly) && (
                   <button
                     type="button"
                     onClick={resetFilters}
@@ -513,10 +431,16 @@ export default function IntervenantsPage() {
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {filteredIntervenants.map((intervenant) => {
                   const photo = getIntervenantPhoto(intervenant);
-                  const speciality = getSpeciality(intervenant);
+                  const speciality = getCoachSpeciality(intervenant);
+                  const description = getCoachDescription(intervenant);
                   const location = getLocation(intervenant);
                   const rating = getRating(intervenant);
                   const reviewsCount = getReviewsCount(intervenant);
+                  const video = getIntervenantVideo(intervenant);
+                  const experience = getCoachExperience(intervenant);
+                  const profileUrl = `/intervenants/${intervenant.id}`;
+                  const reservationUrl = buildReservationUrl(intervenant);
+                  const messageUrl = buildMessageUrl(intervenant);
 
                   return (
                     <article
@@ -532,7 +456,7 @@ export default function IntervenantsPage() {
 
                         <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-slate-950/90 px-3 py-1 text-xs font-black text-white shadow-sm backdrop-blur">
                           <Star size={13} className="fill-white" />
-                          {rating.toFixed(1)}
+                          {rating ? rating.toFixed(1) : "Nouveau"}
                         </span>
                       </div>
 
@@ -567,9 +491,23 @@ export default function IntervenantsPage() {
                           {location}
                         </div>
 
-                        <p className="mt-4 line-clamp-3 min-h-[4.6rem] text-sm font-semibold leading-7 text-slate-500">
-                          {intervenant.bio ||
-                            "Profil intervenant Gotfit disponible pour un accompagnement personnalisé."}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {experience && (
+                            <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-orange-700">
+                              {experience}
+                            </span>
+                          )}
+
+                          {video && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">
+                              <Video size={13} />
+                              Vidéo 60s
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-4 line-clamp-3 min-h-[4.6rem] whitespace-pre-line text-sm font-semibold leading-7 text-slate-500">
+                          {description}
                         </p>
 
                         <div className="mt-5 flex items-center justify-between rounded-2xl bg-orange-50 p-3">
@@ -580,7 +518,7 @@ export default function IntervenantsPage() {
 
                             <div>
                               <strong className="block text-sm font-black">
-                                {rating.toFixed(1)} / 5
+                                {rating ? `${rating.toFixed(1)} / 5` : "Nouveau"}
                               </strong>
                               <span className="text-xs font-bold text-slate-500">
                                 {reviewsCount} avis
@@ -595,14 +533,14 @@ export default function IntervenantsPage() {
 
                         <div className="mt-5 grid grid-cols-2 gap-2">
                           <Link
-                            href={`/intervenants/${intervenant.id}`}
+                            href={profileUrl}
                             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-50"
                           >
                             Profil
                           </Link>
 
                           <Link
-                            href={`/reservation?intervenant_id=${intervenant.id}`}
+                            href={getProtectedUrl(reservationUrl)}
                             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700"
                           >
                             Réserver
@@ -611,7 +549,7 @@ export default function IntervenantsPage() {
                         </div>
 
                         <Link
-                          href={`/messages?user_id=${intervenant.id}`}
+                          href={getProtectedUrl(messageUrl)}
                           className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800"
                         >
                           <MessageCircle size={17} />
@@ -633,8 +571,8 @@ export default function IntervenantsPage() {
                 </h3>
 
                 <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-slate-500">
-                  Aucun intervenant approuvé n’est disponible pour le moment, ou
-                  vos filtres sont trop restrictifs.
+                  Aucun intervenant n’est disponible pour le moment, ou vos filtres
+                  sont trop restrictifs.
                 </p>
 
                 <button
@@ -662,8 +600,9 @@ export default function IntervenantsPage() {
                 </h2>
 
                 <p className="mt-5 max-w-xl text-sm font-semibold leading-7 text-white/60">
-                  Créez votre compte intervenant, présentez vos services et
-                  commencez à recevoir des réservations depuis Gotfit.
+                  Créez votre compte intervenant, complétez votre spécialité, vos
+                  certifications, vos langues, votre expérience et votre vidéo de
+                  présentation 60 secondes maximum.
                 </p>
               </div>
 

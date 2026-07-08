@@ -1,47 +1,37 @@
 import Link from "next/link";
-import { Mail, MapPin, Phone, ArrowUpRight, Heart, ShieldCheck } from "lucide-react";
+import {
+  ArrowUpRight,
+  Heart,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+
+import { LOGO_URL } from "@/lib/api-config";
 
 const footerPages = [
-  {
-    label: "Accueil",
-    href: "/",
-  },
-  {
-    label: "Services",
-    href: "/services",
-  },
-  {
-    label: "Intervenants",
-    href: "/intervenants",
-  },
-  {
-    label: "Contact",
-    href: "/contact",
-  },
-  {
-    label: "Connexion",
-    href: "/auth/login",
-  },
-  {
-    label: "Inscription",
-    href: "/auth/register",
-  },
+  { label: "Accueil", href: "/" },
+  { label: "Services", href: "/services" },
+  { label: "Annonces", href: "/annonces" },
+  { label: "Intervenants", href: "/intervenants" },
+  { label: "Mes réservations", href: "/reservations" },
+  { label: "Parcours client", href: "/parcours-client" },
+  { label: "Onboarding", href: "/onboarding" },
+  { label: "Visio", href: "/visio" },
+  { label: "Contact", href: "/contact" },
+  { label: "Connexion", href: "/auth/login" },
+  { label: "Inscription", href: "/auth/register" },
 ];
 
 const footerLegal = [
-  {
-    label: "Conditions générales",
-    href: "/cgu",
-  },
-  {
-    label: "Politique de confidentialité",
-    href: "/confidentialite",
-  },
-  {
-    label: "Mentions légales",
-    href: "/mentions-legales",
-  },
+  { label: "Conditions générales", href: "/cgu" },
+  { label: "Politique de confidentialité", href: "/confidentialite" },
+  { label: "Mentions légales", href: "/mentions-legales" },
 ];
+
+const services = ["Coaching", "Pilates", "Yoga", "Nutrition"];
 
 function InstagramIcon({ className = "" }: { className?: string }) {
   return (
@@ -61,13 +51,7 @@ function InstagramIcon({ className = "" }: { className?: string }) {
         stroke="currentColor"
         strokeWidth="2"
       />
-      <circle
-        cx="12"
-        cy="12"
-        r="4"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
       <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
     </svg>
   );
@@ -105,53 +89,59 @@ export default function Footer() {
   return (
     <footer
       id="contact"
-      className="relative overflow-hidden bg-[#fffaf0] px-4 pb-28 pt-20 text-[#21170b] lg:pb-10"
+      className="relative overflow-hidden border-t border-[#eadfce] bg-[#fffaf0] px-4 pb-28 pt-16 text-[#21170b] lg:pb-10 lg:pt-20"
     >
-      <div className="pointer-events-none absolute -left-24 top-10 h-80 w-80 rounded-full bg-[#f2d58d]/35 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-10 h-96 w-96 rounded-full bg-[#b9872b]/15 blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#b9872b]/40 to-transparent" />
+      <div className="pointer-events-none absolute -left-32 top-12 h-80 w-80 rounded-full bg-[#f2d58d]/35 blur-3xl" />
+      <div className="pointer-events-none absolute -right-28 bottom-12 h-96 w-96 rounded-full bg-[#b9872b]/15 blur-3xl" />
 
-      <div className="relative mx-auto max-w-7xl">
-        <div className="mb-10 rounded-[2rem] border border-[#b9872b]/15 bg-white/80 p-5 shadow-[0_24px_70px_rgba(65,42,12,0.08)] backdrop-blur md:p-7">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+      <div className="relative mx-auto w-full max-w-[1500px]">
+        <section className="mb-10 overflow-hidden rounded-[2rem] border border-[#eadfce] bg-white/80 shadow-[0_24px_80px_rgba(33,23,11,0.08)] backdrop-blur-2xl">
+          <div className="grid gap-6 p-6 md:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
-              <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#b9872b]/20 bg-[#fff3d6] px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#9b6b19]">
+              <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#b9872b]/20 bg-[#fff3d6] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#9b6b19]">
                 <ShieldCheck size={15} />
                 Plateforme GotFit
               </span>
 
-              <h2 className="max-w-2xl text-2xl font-black tracking-[-0.04em] text-[#21170b] md:text-4xl">
+              <h2 className="max-w-3xl text-3xl font-black leading-tight tracking-tight text-[#21170b] md:text-5xl">
                 Bougez mieux, réservez plus simplement, progressez avec les bons
                 intervenants.
               </h2>
+
+              <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-[#6f5d43] md:text-base">
+                Une expérience fluide pour trouver un coach, réserver une
+                séance, échanger, payer et suivre votre parcours bien-être.
+              </p>
             </div>
 
             <Link
               href="/contact"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f2d58d] to-[#b9872b] px-6 text-sm font-black text-[#1b1206] shadow-[0_18px_45px_rgba(185,135,43,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(185,135,43,0.3)]"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#21170b] px-6 text-sm font-black text-white shadow-[0_18px_45px_rgba(33,23,11,0.22)] transition hover:-translate-y-0.5 hover:bg-[#3a2812]"
             >
               Nous contacter
               <ArrowUpRight size={17} />
             </Link>
           </div>
-        </div>
+        </section>
 
-        <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr_0.75fr_1fr]">
-          <div className="rounded-[2rem] border border-[#b9872b]/15 bg-white p-7 shadow-[0_24px_70px_rgba(65,42,12,0.08)]">
+        <section className="grid gap-5 lg:grid-cols-[1.2fr_0.9fr_0.75fr_1fr]">
+          <div className="rounded-[2rem] border border-[#eadfce] bg-white/85 p-6 shadow-[0_18px_55px_rgba(33,23,11,0.06)] md:p-7">
             <Link href="/" className="mb-6 inline-flex items-center">
               <img
-                src="http://187.77.181.212/images/logo.png"
+                src={LOGO_URL}
                 alt="Logo Gotfit"
-                className="h-auto w-[150px] max-w-full object-contain md:w-[175px]"
+                className="h-auto w-[155px] max-w-full object-contain md:w-[180px]"
               />
             </Link>
 
-            <p className="max-w-sm text-sm leading-7 text-[#6f5d43]">
-              Plateforme digitale spécialisée dans le mouvement et le bien-être :
-              recherche, réservation, paiement, messagerie et suivi des séances.
+            <p className="max-w-md text-sm font-semibold leading-7 text-[#6f5d43]">
+              GotFit connecte les clients, coachs et intervenants autour du
+              mouvement, du bien-être et du suivi personnalisé.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2">
-              {["Coaching", "Pilates", "Yoga", "Nutrition"].map((item) => (
+              {services.map((item) => (
                 <span
                   key={item}
                   className="rounded-full border border-[#b9872b]/15 bg-[#fff8e9] px-4 py-2 text-xs font-black text-[#9b6b19]"
@@ -165,7 +155,7 @@ export default function Footer() {
               <a
                 href="#"
                 aria-label="Instagram"
-                className="group flex h-11 w-11 items-center justify-center rounded-full border border-[#b9872b]/15 bg-[#fff8e9] text-[#9b6b19] transition hover:-translate-y-0.5 hover:bg-[#b9872b] hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfce] bg-[#fff8e9] text-[#9b6b19] transition hover:-translate-y-0.5 hover:bg-[#21170b] hover:text-white"
               >
                 <InstagramIcon className="h-5 w-5" />
               </a>
@@ -173,7 +163,7 @@ export default function Footer() {
               <a
                 href="#"
                 aria-label="Facebook"
-                className="group flex h-11 w-11 items-center justify-center rounded-full border border-[#b9872b]/15 bg-[#fff8e9] text-[#9b6b19] transition hover:-translate-y-0.5 hover:bg-[#b9872b] hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfce] bg-[#fff8e9] text-[#9b6b19] transition hover:-translate-y-0.5 hover:bg-[#21170b] hover:text-white"
               >
                 <FacebookIcon className="h-5 w-5" />
               </a>
@@ -181,24 +171,25 @@ export default function Footer() {
               <a
                 href="#"
                 aria-label="LinkedIn"
-                className="group flex h-11 w-11 items-center justify-center rounded-full border border-[#b9872b]/15 bg-[#fff8e9] text-[#9b6b19] transition hover:-translate-y-0.5 hover:bg-[#b9872b] hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfce] bg-[#fff8e9] text-[#9b6b19] transition hover:-translate-y-0.5 hover:bg-[#21170b] hover:text-white"
               >
                 <LinkedinIcon className="h-5 w-5" />
               </a>
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[#b9872b]/15 bg-white/70 p-7 shadow-[0_18px_50px_rgba(65,42,12,0.06)]">
-            <h3 className="mb-5 text-sm font-black uppercase tracking-[0.18em] text-[#b9872b]">
+          <div className="rounded-[2rem] border border-[#eadfce] bg-white/70 p-6 shadow-[0_18px_55px_rgba(33,23,11,0.05)] md:p-7">
+            <h3 className="mb-5 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#b9872b]">
+              <Sparkles size={15} />
               Pages
             </h3>
 
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
               {footerPages.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="group flex items-center justify-between rounded-2xl px-3 py-2 text-sm font-bold text-[#5d4b2f] transition hover:bg-[#fff3d6] hover:text-[#9b6b19]"
+                  className="group flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-extrabold text-[#5d4b2f] transition hover:bg-[#fff3d6] hover:text-[#9b6b19]"
                 >
                   {item.label}
                   <ArrowUpRight
@@ -210,17 +201,17 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[#b9872b]/15 bg-white/70 p-7 shadow-[0_18px_50px_rgba(65,42,12,0.06)]">
-            <h3 className="mb-5 text-sm font-black uppercase tracking-[0.18em] text-[#b9872b]">
+          <div className="rounded-[2rem] border border-[#eadfce] bg-white/70 p-6 shadow-[0_18px_55px_rgba(33,23,11,0.05)] md:p-7">
+            <h3 className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-[#b9872b]">
               Légal
             </h3>
 
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               {footerLegal.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="group flex items-center justify-between rounded-2xl px-3 py-2 text-sm font-bold text-[#5d4b2f] transition hover:bg-[#fff3d6] hover:text-[#9b6b19]"
+                  className="group flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-extrabold text-[#5d4b2f] transition hover:bg-[#fff3d6] hover:text-[#9b6b19]"
                 >
                   {item.label}
                   <ArrowUpRight
@@ -230,56 +221,46 @@ export default function Footer() {
                 </Link>
               ))}
             </div>
+
+            <div className="mt-6 rounded-[1.5rem] bg-[#21170b] p-5 text-white">
+              <p className="text-sm font-black">Réservation sécurisée</p>
+              <p className="mt-2 text-xs font-semibold leading-6 text-white/65">
+                Paiement, suivi, messagerie et parcours client centralisés dans
+                une seule webapp.
+              </p>
+            </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[#b9872b]/15 bg-white/70 p-7 shadow-[0_18px_50px_rgba(65,42,12,0.06)]">
-            <h3 className="mb-5 text-sm font-black uppercase tracking-[0.18em] text-[#b9872b]">
+          <div className="rounded-[2rem] border border-[#eadfce] bg-white/70 p-6 shadow-[0_18px_55px_rgba(33,23,11,0.05)] md:p-7">
+            <h3 className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-[#b9872b]">
               Contact
             </h3>
 
-            <div className="grid gap-4">
-              <div className="flex gap-3 rounded-2xl bg-[#fff8e9] p-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#b9872b] shadow-sm">
-                  <Mail size={18} />
-                </span>
-                <div>
-                  <strong className="block text-sm text-[#21170b]">Email</strong>
-                  <span className="text-sm text-[#6f5d43]">
-                    contact@gotfit.com
-                  </span>
-                </div>
-              </div>
+            <div className="grid gap-3">
+              <ContactItem
+                icon={<Mail size={18} />}
+                label="Email"
+                value="contact@gotfit.com"
+                href="mailto:contact@gotfit.com"
+              />
 
-              <div className="flex gap-3 rounded-2xl bg-[#fff8e9] p-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#b9872b] shadow-sm">
-                  <Phone size={18} />
-                </span>
-                <div>
-                  <strong className="block text-sm text-[#21170b]">
-                    Téléphone
-                  </strong>
-                  <span className="text-sm text-[#6f5d43]">
-                    +33 6 00 00 00 00
-                  </span>
-                </div>
-              </div>
+              <ContactItem
+                icon={<Phone size={18} />}
+                label="Téléphone"
+                value="+33 6 00 00 00 00"
+                href="tel:+33600000000"
+              />
 
-              <div className="flex gap-3 rounded-2xl bg-[#fff8e9] p-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#b9872b] shadow-sm">
-                  <MapPin size={18} />
-                </span>
-                <div>
-                  <strong className="block text-sm text-[#21170b]">Zone</strong>
-                  <span className="text-sm text-[#6f5d43]">
-                    France, DOM-TOM et francophonie
-                  </span>
-                </div>
-              </div>
+              <ContactItem
+                icon={<MapPin size={18} />}
+                label="Zone"
+                value="France, DOM-TOM et francophonie"
+              />
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="mt-12 flex flex-col gap-3 border-t border-[#b9872b]/15 pt-6 text-sm text-[#7b6848] md:flex-row md:items-center md:justify-between">
+        <div className="mt-10 flex flex-col gap-3 border-t border-[#eadfce] pt-6 text-sm font-semibold text-[#7b6848] md:flex-row md:items-center md:justify-between">
           <p>© {new Date().getFullYear()} Gotfit. Tous droits réservés.</p>
 
           <p className="inline-flex items-center gap-1">
@@ -289,5 +270,40 @@ export default function Footer() {
         </div>
       </div>
     </footer>
+  );
+}
+
+function ContactItem({
+  icon,
+  label,
+  value,
+  href,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const content = (
+    <div className="flex gap-3 rounded-[1.4rem] border border-[#eadfce] bg-[#fff8e9] p-3 transition hover:border-[#b9872b]/35 hover:bg-[#fff3d6]">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#b9872b] shadow-sm">
+        {icon}
+      </span>
+
+      <div>
+        <strong className="block text-sm text-[#21170b]">{label}</strong>
+        <span className="text-sm font-semibold leading-6 text-[#6f5d43]">
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+
+  if (!href) return content;
+
+  return (
+    <a href={href} className="block">
+      {content}
+    </a>
   );
 }

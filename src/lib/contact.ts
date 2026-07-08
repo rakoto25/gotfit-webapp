@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "@/lib/api-config";
+
 export type ContactPayload = {
   name: string;
   email: string;
@@ -12,12 +14,10 @@ export type ContactResponse = {
   errors?: Record<string, string[]>;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://187.77.181.212/api";
-
 export const sendContactMessage = async (
   payload: ContactPayload
 ): Promise<ContactResponse> => {
-  const response = await fetch(`${API_URL}/contact`, {
+  const response = await fetch(`${API_BASE_URL}/contact`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

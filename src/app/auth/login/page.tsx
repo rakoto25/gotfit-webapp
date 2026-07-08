@@ -13,12 +13,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { getCurrentUser, saveAuth } from "@/lib/auth";
+import { API_BASE_URL, LOGO_URL } from "@/lib/api-config";
 import type { User } from "@/types/auth";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://187.77.181.212/api";
-
-const LOGO_URL = "http://187.77.181.212/images/logo.png";
 
 type LoginResponse = {
   token?: string;

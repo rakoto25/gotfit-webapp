@@ -18,6 +18,7 @@ import {
   Save,
   ShieldCheck,
   UserRound,
+  Video,
   Wallet,
   X,
 } from "lucide-react";
@@ -28,10 +29,8 @@ import {
   hasRole,
   saveAuth,
 } from "@/lib/auth";
+import { API_BASE_URL, getAssetUrl } from "@/lib/api-config";
 import type { User } from "@/types/auth";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://187.77.181.212/api";
 
 const FALLBACK_COVER =
   "linear-gradient(135deg, #fff7ed 0%, #fed7aa 45%, #fb923c 100%)";
@@ -57,9 +56,39 @@ type ProfileUser = User & {
   photo_url?: string | null;
   cover_photo?: string | null;
   cover_photo_url?: string | null;
+  city?: string | null;
+  location?: string | null;
   account_status?: string | null;
+  coach_title?: string | null;
+  coach_short_description?: string | null;
+  coach_speciality?: string | null;
+  coach_experience_years?: number | string | null;
+  coach_certifications?: string[] | string | null;
+  coach_languages?: string[] | string | null;
+  presentation_video?: string | null;
+  presentation_video_url?: string | null;
+  presentation_video_duration_seconds?: number | string | null;
+  stripe_account_id?: string | null;
+  stripe_onboarding_completed?: boolean | null;
   created_at?: string;
   updated_at?: string;
+};
+
+type StripeConnectResponse = {
+  status?: number;
+  url?: string;
+  stripe_account_id?: string | null;
+  message?: string;
+};
+
+type StripeConnectStatusResponse = {
+  status?: number;
+  connected?: boolean;
+  onboarding_completed?: boolean;
+  charges_enabled?: boolean;
+  payouts_enabled?: boolean;
+  stripe_account_id?: string | null;
+  message?: string;
 };
 
 type Reservation = {
@@ -107,11 +136,7 @@ function normalizeArray<T>(payload: any): T[] {
 }
 
 function getFullUrl(url?: string | null) {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
-  const base = API_BASE_URL.replace("/api", "");
-  return `${base}${url.startsWith("/") ? url : `/${url}`}`;
+  return getAssetUrl(url);
 }
 
 function getUserPhoto(user: ProfileUser | null) {
@@ -120,6 +145,33 @@ function getUserPhoto(user: ProfileUser | null) {
 
 function getUserCover(user: ProfileUser | null) {
   return getFullUrl(user?.cover_photo_url || user?.cover_photo);
+}
+
+function getUserVideo(user: ProfileUser | null) {
+  return getFullUrl(user?.presentation_video_url || user?.presentation_video);
+}
+
+function toInputValue(value: unknown) {
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value ?? "");
+}
+
+function getVideoDuration(file: File) {
+  return new Promise<number>((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(video.duration || 0);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Impossible de lire la durée de la vidéo."));
+    };
+    video.src = objectUrl;
+  });
 }
 
 function formatDate(value?: string | null) {
@@ -272,6 +324,37 @@ async function apiPostForm<T>(endpoint: string, formData: FormData): Promise<T> 
   return result;
 }
 
+async function apiPostJson<T>(endpoint: string): Promise<T> {
+  const token = getToken();
+
+  if (!token) {
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const result = (await response.json().catch(() => null)) as T & {
+    message?: string;
+  };
+
+  if (response.status === 401) {
+    clearAuth();
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  }
+
+  if (!response.ok) {
+    throw new Error(result?.message || "Une erreur est survenue.");
+  }
+
+  return result;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
 
@@ -284,20 +367,40 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [bio, setBio] = useState("");
+  const [city, setCity] = useState("");
+  const [location, setLocation] = useState("");
+  const [coachTitle, setCoachTitle] = useState("");
+  const [coachShortDescription, setCoachShortDescription] = useState("");
+  const [coachSpeciality, setCoachSpeciality] = useState("");
+  const [coachExperienceYears, setCoachExperienceYears] = useState("");
+  const [coachCertifications, setCoachCertifications] = useState("");
+  const [coachLanguages, setCoachLanguages] = useState("");
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [presentationVideoFile, setPresentationVideoFile] = useState<File | null>(null);
 
   const [photoPreview, setPhotoPreview] = useState("");
   const [coverPreview, setCoverPreview] = useState("");
+  const [presentationVideoPreview, setPresentationVideoPreview] = useState("");
+  const [presentationVideoDuration, setPresentationVideoDuration] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeChecking, setStripeChecking] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const mainRole = useMemo(() => getMainRole(user), [user]);
+  const isIntervenantAccount = useMemo(() => hasRole(user, "intervenant"), [user]);
+  const stripeStatus = useMemo(() => {
+    if (!isIntervenantAccount) return "hidden";
+    if (user?.stripe_onboarding_completed) return "active";
+    if (user?.stripe_account_id) return "pending";
+    return "missing";
+  }, [isIntervenantAccount, user?.stripe_account_id, user?.stripe_onboarding_completed]);
 
   const totalPaid = useMemo(() => {
     return payments.reduce((total, item) => {
@@ -323,6 +426,21 @@ export default function ProfilePage() {
   }, [router]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeReturn = params.get("stripe");
+
+    if (stripeReturn === "success") {
+      setSuccess("Retour Stripe réussi. Vérification de votre compte de paiement en cours...");
+      refreshStripeStatus();
+    }
+
+    if (stripeReturn === "refresh") {
+      setError("Le lien Stripe a expiré. Relancez l’activation des paiements.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
 
     setName(user.name || "");
@@ -330,8 +448,22 @@ export default function ProfilePage() {
     setPhone(user.phone || "");
     setAddress(user.address || "");
     setBio(user.bio || "");
+    setCity(user.city || "");
+    setLocation(user.location || "");
+    setCoachTitle(user.coach_title || "");
+    setCoachShortDescription(user.coach_short_description || "");
+    setCoachSpeciality(user.coach_speciality || "");
+    setCoachExperienceYears(toInputValue(user.coach_experience_years));
+    setCoachCertifications(toInputValue(user.coach_certifications));
+    setCoachLanguages(toInputValue(user.coach_languages));
     setPhotoPreview(getUserPhoto(user));
     setCoverPreview(getUserCover(user));
+    setPresentationVideoPreview(getUserVideo(user));
+    setPresentationVideoDuration(
+      user.presentation_video_duration_seconds
+        ? Number(user.presentation_video_duration_seconds)
+        : null
+    );
   }, [user]);
 
   async function loadProfile() {
@@ -393,6 +525,50 @@ export default function ProfilePage() {
     setCoverPreview(URL.createObjectURL(file));
   }
 
+  async function handlePresentationVideoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    setError("");
+    setSuccess("");
+    setPresentationVideoFile(null);
+    setPresentationVideoPreview(getUserVideo(user));
+    setPresentationVideoDuration(
+      user?.presentation_video_duration_seconds
+        ? Number(user.presentation_video_duration_seconds)
+        : null
+    );
+
+    if (!file) return;
+
+    if (!file.type.startsWith("video/")) {
+      setError("Le fichier choisi doit être une vidéo.");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      const duration = await getVideoDuration(file);
+      const roundedDuration = Math.round(duration);
+
+      if (duration > 60.5) {
+        setError("La vidéo de présentation doit durer 60 secondes maximum.");
+        event.target.value = "";
+        return;
+      }
+
+      setPresentationVideoFile(file);
+      setPresentationVideoPreview(URL.createObjectURL(file));
+      setPresentationVideoDuration(roundedDuration);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de vérifier la durée de la vidéo."
+      );
+      event.target.value = "";
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -423,6 +599,14 @@ export default function ProfilePage() {
       formData.append("phone", phone.trim());
       formData.append("address", address.trim());
       formData.append("bio", bio.trim());
+      formData.append("city", city.trim());
+      formData.append("location", location.trim());
+      formData.append("coach_title", coachTitle.trim());
+      formData.append("coach_short_description", coachShortDescription.trim());
+      formData.append("coach_speciality", coachSpeciality.trim());
+      formData.append("coach_experience_years", coachExperienceYears.trim());
+      formData.append("coach_certifications", coachCertifications.trim());
+      formData.append("coach_languages", coachLanguages.trim());
 
       if (photoFile) {
         formData.append("photo", photoFile);
@@ -430,6 +614,17 @@ export default function ProfilePage() {
 
       if (coverFile) {
         formData.append("cover_photo", coverFile);
+      }
+
+      if (presentationVideoFile) {
+        formData.append("presentation_video", presentationVideoFile);
+
+        if (presentationVideoDuration !== null) {
+          formData.append(
+            "presentation_video_duration_seconds",
+            String(presentationVideoDuration)
+          );
+        }
       }
 
       const result = await apiPostForm<ProfileUpdateResponse>(
@@ -446,6 +641,7 @@ export default function ProfilePage() {
 
       setPhotoFile(null);
       setCoverFile(null);
+      setPresentationVideoFile(null);
       setSuccess("Profil mis à jour avec succès.");
     } catch (err) {
       const message =
@@ -456,6 +652,81 @@ export default function ProfilePage() {
       setError(message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function refreshStripeStatus() {
+    try {
+      setStripeChecking(true);
+      setError("");
+
+      const result = await apiGet<StripeConnectStatusResponse>(
+        "/stripe/connect/status"
+      );
+
+      if (!result) {
+        throw new Error("Impossible de vérifier le statut Stripe.");
+      }
+
+      setUser((currentUser) => {
+        if (!currentUser) return currentUser;
+
+        const updatedUser = {
+          ...currentUser,
+          stripe_account_id:
+            result.stripe_account_id ?? currentUser.stripe_account_id ?? null,
+          stripe_onboarding_completed: Boolean(result.onboarding_completed),
+        };
+
+        saveAuth(getToken() || "", updatedUser);
+
+        return updatedUser;
+      });
+
+      if (result.onboarding_completed) {
+        setSuccess("Paiements Stripe activés. Vous pouvez recevoir vos reversements.");
+      } else {
+        setError(
+          "Votre compte Stripe est créé, mais l’activation n’est pas encore terminée. Complétez les informations demandées par Stripe."
+        );
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Impossible de vérifier le statut Stripe.";
+
+      setError(message);
+    } finally {
+      setStripeChecking(false);
+    }
+  }
+
+  async function handleStripeConnect() {
+    if (stripeLoading) return;
+
+    try {
+      setStripeLoading(true);
+      setError("");
+      setSuccess("");
+
+      const result = await apiPostJson<StripeConnectResponse>(
+        "/stripe/connect/onboarding"
+      );
+
+      if (!result?.url) {
+        throw new Error("Lien Stripe Connect introuvable.");
+      }
+
+      window.location.href = result.url;
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Impossible de générer le lien Stripe Connect.";
+
+      setError(message);
+      setStripeLoading(false);
     }
   }
 
@@ -592,13 +863,33 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <Link
-                href={getDashboardUrl(user)}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700"
-              >
-                <ShieldCheck size={18} />
-                Mon espace
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/parcours-client"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800"
+                >
+                  <CalendarCheck size={18} />
+                  Parcours client
+                </Link>
+
+                {hasRole(user, "client") && (
+                  <Link
+                    href="/onboarding"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-orange-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-orange-50"
+                  >
+                    <BadgeCheck size={18} />
+                    Onboarding
+                  </Link>
+                )}
+
+                <Link
+                  href={getDashboardUrl(user)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700"
+                >
+                  <ShieldCheck size={18} />
+                  Mon espace
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -684,6 +975,32 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Ville
+                  </label>
+                  <input
+                    value={city}
+                    onChange={(event) => setCity(event.target.value)}
+                    className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white"
+                    placeholder="Paris, Antananarivo..."
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Localisation affichée
+                  </label>
+                  <input
+                    value={location}
+                    onChange={(event) => setLocation(event.target.value)}
+                    className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white"
+                    placeholder="En ligne, Paris, Île-de-France..."
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="mb-2 block text-sm font-bold text-slate-700">
                   Bio
@@ -696,6 +1013,139 @@ export default function ProfilePage() {
                   placeholder="Présentez-vous en quelques lignes..."
                 />
               </div>
+
+              {isIntervenantAccount && (
+                <div className="rounded-[2rem] border border-orange-100 bg-orange-50 p-4 sm:p-5">
+                  <div className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-black tracking-tight text-slate-950">
+                        Profil coach / intervenant
+                      </h3>
+                      <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                        Champs envoyés à Laravel et affichés dynamiquement sur la
+                        liste et le détail des intervenants.
+                      </p>
+                    </div>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-orange-700">
+                      <BadgeCheck size={19} />
+                    </span>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Titre coach
+                      </label>
+                      <input
+                        value={coachTitle}
+                        onChange={(event) => setCoachTitle(event.target.value)}
+                        className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
+                        placeholder="Coach Pilates, Préparateur physique..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Spécialité
+                      </label>
+                      <input
+                        value={coachSpeciality}
+                        onChange={(event) => setCoachSpeciality(event.target.value)}
+                        className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
+                        placeholder="Pilates, Yoga, Nutrition..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Années d’expérience
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={coachExperienceYears}
+                        onChange={(event) =>
+                          setCoachExperienceYears(event.target.value)
+                        }
+                        className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
+                        placeholder="5"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Langues
+                      </label>
+                      <input
+                        value={coachLanguages}
+                        onChange={(event) => setCoachLanguages(event.target.value)}
+                        className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
+                        placeholder="Français, Anglais..."
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Description courte
+                      </label>
+                      <textarea
+                        value={coachShortDescription}
+                        onChange={(event) =>
+                          setCoachShortDescription(event.target.value)
+                        }
+                        rows={3}
+                        className="w-full resize-none rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
+                        placeholder="Résumé affiché sur les cartes intervenants."
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Certifications
+                      </label>
+                      <textarea
+                        value={coachCertifications}
+                        onChange={(event) =>
+                          setCoachCertifications(event.target.value)
+                        }
+                        rows={3}
+                        className="w-full resize-none rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
+                        placeholder="BPJEPS, Pilates Reformer, Yoga Alliance..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-[1.5rem] border border-orange-100 bg-white p-4">
+                    <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">
+                      <Video size={18} className="text-orange-500" />
+                      Vidéo de présentation 60 secondes maximum
+                    </label>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handlePresentationVideoChange}
+                      className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition file:mr-4 file:rounded-full file:border-0 file:bg-orange-600 file:px-4 file:py-2 file:text-sm file:font-black file:text-white hover:file:bg-orange-700"
+                    />
+
+                    {presentationVideoDuration !== null && (
+                      <p className="mt-3 text-xs font-black text-orange-700">
+                        Durée détectée : {Math.round(presentationVideoDuration)}s /
+                        60s maximum
+                      </p>
+                    )}
+
+                    {presentationVideoPreview && (
+                      <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950 p-2">
+                        <video
+                          controls
+                          src={presentationVideoPreview}
+                          className="aspect-video w-full rounded-xl bg-black object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -718,6 +1168,105 @@ export default function ProfilePage() {
           </form>
 
           <aside className="grid gap-6">
+            {isIntervenantAccount && (
+              <div className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-black tracking-tight">
+                      Paiements Stripe
+                    </h2>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                      Activez votre compte sécurisé Stripe pour recevoir vos
+                      reversements après validation des prestations.
+                    </p>
+                  </div>
+
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700">
+                    <Wallet size={20} />
+                  </span>
+                </div>
+
+                <div className="rounded-2xl bg-orange-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="text-orange-500" size={20} />
+                      <span className="text-sm font-bold text-slate-600">
+                        Statut
+                      </span>
+                    </div>
+
+                    <strong
+                      className={`rounded-full px-3 py-1 text-xs font-black ${
+                        stripeStatus === "active"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : stripeStatus === "pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {stripeStatus === "active"
+                        ? "Activé"
+                        : stripeStatus === "pending"
+                          ? "À compléter"
+                          : "Non connecté"}
+                    </strong>
+                  </div>
+
+                  <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
+                    {stripeStatus === "active"
+                      ? "Votre compte Stripe est prêt. Les reversements peuvent être envoyés vers votre banque."
+                      : stripeStatus === "pending"
+                        ? "Votre compte Stripe existe, mais Stripe attend encore certaines informations."
+                        : "Vous devez activer Stripe avant de pouvoir recevoir les reversements coach."}
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {stripeStatus !== "active" && (
+                    <button
+                      type="button"
+                      onClick={handleStripeConnect}
+                      disabled={stripeLoading}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {stripeLoading ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Ouverture Stripe...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard size={18} />
+                          {stripeStatus === "pending"
+                            ? "Continuer l’activation Stripe"
+                            : "Activer mes paiements Stripe"}
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={refreshStripeStatus}
+                    disabled={stripeChecking}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {stripeChecking ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Vérification...
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck size={18} />
+                        Vérifier le statut Stripe
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7">
               <h2 className="mb-5 text-2xl font-black tracking-tight">
                 Résumé du compte

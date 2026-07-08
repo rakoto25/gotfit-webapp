@@ -17,144 +17,48 @@ import {
   ShieldCheck,
   Star,
   UserRound,
+  Video,
 } from "lucide-react";
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { getToken, hasRole } from "@/lib/auth";
-import type { User } from "@/types/auth";
+import { getToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/api-config";
+import {
+  getCoachCertifications,
+  getCoachDescription,
+  getCoachExperience,
+  getCoachLanguages,
+  getCoachSpeciality,
+  getCoachTitle,
+  getIntervenantCover,
+  getIntervenantPhoto,
+  getIntervenantVideo,
+  getLocation,
+  getRating,
+  getReviewsCount,
+  getStatusLabel,
+  getVideoDurationLabel,
+  isPublicIntervenant,
+  normalizeIntervenants,
+  type ApiIntervenantsResponse,
+  type Intervenant,
+} from "@/lib/intervenants";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://187.77.181.212/api";
-
-type Intervenant = User & {
-  phone?: string | null;
-  address?: string | null;
-  bio?: string | null;
-  photo?: string | null;
-  photo_url?: string | null;
-  cover_photo?: string | null;
-  cover_photo_url?: string | null;
-  account_status?: string | null;
-  speciality?: string | null;
-  specialty?: string | null;
-  service?: string | null;
-  services?: string[] | null;
-  rating?: number | string | null;
-  reviews_count?: number | string | null;
-  city?: string | null;
-  location?: string | null;
-  created_at?: string;
-};
-
-type ApiIntervenantsResponse = {
-  success?: boolean;
-  message?: string;
-  data?: Intervenant[] | Intervenant;
-};
-
-function normalizeArray(payload: ApiIntervenantsResponse | Intervenant[] | null) {
-  if (!payload) return [];
-
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload.data)) {
-    return payload.data;
-  }
-
-  if (payload.data && typeof payload.data === "object") {
-    return [payload.data as Intervenant];
-  }
-
-  return [];
+function buildAuthUrl(targetUrl: string) {
+  return `/auth/login?redirect=${encodeURIComponent(targetUrl)}`;
 }
 
-function getFullUrl(url?: string | null) {
-  if (!url) return "";
-
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
-
-  const base = API_BASE_URL.replace(/\/api\/?$/, "");
-
-  return `${base}${url.startsWith("/") ? url : `/${url}`}`;
+function buildReservationUrl(intervenant: Intervenant) {
+  return `/reservation?intervenant_id=${intervenant.id}`;
 }
 
-function getIntervenantPhoto(intervenant: Intervenant) {
-  return getFullUrl(intervenant.photo_url || intervenant.photo);
+function buildMessageUrl(intervenant: Intervenant) {
+  return `/messages?user_id=${intervenant.id}`;
 }
 
-function getIntervenantCover(intervenant: Intervenant) {
-  return getFullUrl(intervenant.cover_photo_url || intervenant.cover_photo);
-}
-
-function getSpeciality(intervenant: Intervenant) {
-  return (
-    intervenant.speciality ||
-    intervenant.specialty ||
-    intervenant.service ||
-    intervenant.services?.[0] ||
-    "Bien-être"
-  );
-}
-
-function getLocation(intervenant: Intervenant) {
-  return (
-    intervenant.city ||
-    intervenant.location ||
-    intervenant.address ||
-    "Localisation non définie"
-  );
-}
-
-function getRating(intervenant: Intervenant) {
-  const value = Number(intervenant.rating ?? 4.8);
-
-  if (Number.isNaN(value)) {
-    return 4.8;
-  }
-
-  return value;
-}
-
-function getReviewsCount(intervenant: Intervenant) {
-  const value = Number(intervenant.reviews_count ?? 0);
-
-  if (Number.isNaN(value)) {
-    return 0;
-  }
-
-  return value;
-}
-
-function getStatusLabel(status?: string | null) {
-  if (!status) return "Profil disponible";
-
-  const labels: Record<string, string> = {
-    approved: "Profil vérifié",
-    pending: "En attente",
-    rejected: "Refusé",
-    active: "Actif",
-    inactive: "Inactif",
-  };
-
-  return labels[status] || status;
-}
-
-function isIntervenant(user: Intervenant) {
-  if (hasRole(user, "intervenant")) return true;
-
-  const roles = user.roles || [];
-
-  return roles.some((role: any) => {
-    const name = String(role?.name || "").toLowerCase();
-    const slug = String(role?.slug || "").toLowerCase();
-
-    return name.includes("intervenant") || slug.includes("intervenant");
-  });
+function getProtectedUrl(targetUrl: string) {
+  return getToken() ? targetUrl : buildAuthUrl(targetUrl);
 }
 
 async function fetchIntervenantById(id: string): Promise<Intervenant | null> {
@@ -168,15 +72,6 @@ async function fetchIntervenantById(id: string): Promise<Intervenant | null> {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  /*
-    1) On tente d'abord l'endpoint direct :
-       GET /api/intervenants/{id}
-
-    2) Si le backend ne l'a pas encore, on fallback sur :
-       GET /api/intervenants
-       puis on cherche l'intervenant avec le bon ID.
-  */
-
   try {
     const detailResponse = await fetch(`${API_BASE_URL}/intervenants/${id}`, {
       method: "GET",
@@ -184,16 +79,16 @@ async function fetchIntervenantById(id: string): Promise<Intervenant | null> {
       cache: "no-store",
     });
 
-    if (detailResponse.ok) {
-      const payload = (await detailResponse.json().catch(() => null)) as
-        | ApiIntervenantsResponse
-        | Intervenant[]
-        | null;
+    const detailPayload = (await detailResponse.json().catch(() => null)) as
+      | ApiIntervenantsResponse
+      | Intervenant[]
+      | null;
 
-      const items = normalizeArray(payload);
+    if (detailResponse.ok) {
+      const items = normalizeIntervenants(detailPayload);
       const found = items.find((item) => String(item.id) === String(id));
 
-      if (found) {
+      if (found && isPublicIntervenant(found)) {
         return found;
       }
     }
@@ -207,27 +102,27 @@ async function fetchIntervenantById(id: string): Promise<Intervenant | null> {
     cache: "no-store",
   });
 
-  if (!listResponse.ok) {
-    throw new Error(`Erreur API intervenants : ${listResponse.status}`);
-  }
-
   const payload = (await listResponse.json().catch(() => null)) as
     | ApiIntervenantsResponse
     | Intervenant[]
     | null;
 
-  const items = normalizeArray(payload);
+  if (!listResponse.ok) {
+    throw new Error((!Array.isArray(payload) ? payload?.message : undefined) || `Erreur API intervenants : ${listResponse.status}`);
+  }
 
   return (
-    items.find((item) => {
-      const status = String(item.account_status || "").toLowerCase();
+    normalizeIntervenants(payload).find(
+      (item) => String(item.id) === String(id) && isPublicIntervenant(item)
+    ) || null
+  );
+}
 
-      return (
-        String(item.id) === String(id) &&
-        isIntervenant(item) &&
-        status === "approved"
-      );
-    }) || null
+function InfoPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-black text-orange-700">
+      {children}
+    </span>
   );
 }
 
@@ -252,41 +147,63 @@ export default function IntervenantDetailPage() {
   useEffect(() => {
     if (!id) return;
 
-    loadIntervenant();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    let mounted = true;
 
-  async function loadIntervenant() {
-    try {
-      setLoading(true);
-      setErrorMessage("");
+    async function loadIntervenant() {
+      try {
+        setLoading(true);
+        setErrorMessage("");
 
-      const item = await fetchIntervenantById(String(id));
+        const item = await fetchIntervenantById(String(id));
 
-      if (!item) {
-        setIntervenant(null);
-        setErrorMessage("Cet intervenant est introuvable ou non disponible.");
-        return;
+        if (!mounted) return;
+
+        if (!item) {
+          setIntervenant(null);
+          setErrorMessage("Cet intervenant est introuvable ou non disponible.");
+          return;
+        }
+
+        setIntervenant(item);
+      } catch (error) {
+        console.error("Erreur chargement détail intervenant:", error);
+
+        if (mounted) {
+          setIntervenant(null);
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Impossible de charger le profil de cet intervenant pour le moment."
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-
-      setIntervenant(item);
-    } catch (error) {
-      console.error("Erreur chargement détail intervenant:", error);
-      setIntervenant(null);
-      setErrorMessage(
-        "Impossible de charger le profil de cet intervenant pour le moment."
-      );
-    } finally {
-      setLoading(false);
     }
-  }
+
+    loadIntervenant();
+
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
 
   const photo = intervenant ? getIntervenantPhoto(intervenant) : "";
   const cover = intervenant ? getIntervenantCover(intervenant) : "";
-  const speciality = intervenant ? getSpeciality(intervenant) : "";
+  const video = intervenant ? getIntervenantVideo(intervenant) : "";
+  const speciality = intervenant ? getCoachSpeciality(intervenant) : "";
+  const coachTitle = intervenant ? getCoachTitle(intervenant) : "";
+  const description = intervenant ? getCoachDescription(intervenant) : "";
   const location = intervenant ? getLocation(intervenant) : "";
   const rating = intervenant ? getRating(intervenant) : 0;
   const reviewsCount = intervenant ? getReviewsCount(intervenant) : 0;
+  const experience = intervenant ? getCoachExperience(intervenant) : null;
+  const certifications = intervenant ? getCoachCertifications(intervenant) : [];
+  const languages = intervenant ? getCoachLanguages(intervenant) : [];
+  const reservationUrl = intervenant ? buildReservationUrl(intervenant) : "/intervenants";
+  const messageUrl = intervenant ? buildMessageUrl(intervenant) : "/intervenants";
 
   return (
     <>
@@ -335,7 +252,7 @@ export default function IntervenantDetailPage() {
               </div>
             ) : (
               <div className="overflow-hidden rounded-[2.5rem] border border-orange-100 bg-white shadow-[0_24px_90px_rgba(249,115,22,0.12)]">
-                <div className="relative h-64 bg-gradient-to-br from-orange-100 via-orange-200 to-orange-500 sm:h-80">
+                <div className="relative h-72 bg-gradient-to-br from-orange-100 via-orange-200 to-orange-500 sm:h-96">
                   {cover ? (
                     <img
                       src={cover}
@@ -350,25 +267,11 @@ export default function IntervenantDetailPage() {
                     </>
                   )}
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-slate-950/10 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
 
-                  <div className="absolute left-5 top-5 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-orange-700 shadow-sm backdrop-blur">
-                      <BadgeCheck size={15} />
-                      {speciality}
-                    </span>
-
-                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-950/90 px-4 py-2 text-xs font-black text-white shadow-sm backdrop-blur">
-                      <Star size={15} className="fill-white" />
-                      {rating.toFixed(1)} / 5
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[0.9fr_1.6fr] lg:p-10">
-                  <aside className="relative">
-                    <div className="-mt-24 rounded-[2rem] border border-orange-100 bg-white p-5 shadow-xl lg:sticky lg:top-28">
-                      <div className="mx-auto h-36 w-36 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-xl">
+                  <div className="absolute bottom-6 left-5 right-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-end">
+                      <div className="h-32 w-32 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-xl">
                         {photo ? (
                           <img
                             src={photo}
@@ -382,14 +285,59 @@ export default function IntervenantDetailPage() {
                         )}
                       </div>
 
-                      <div className="mt-5 text-center">
-                        <h1 className="text-3xl font-black tracking-tight text-slate-950">
+                      <div className="text-white">
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-orange-700 shadow-sm backdrop-blur">
+                            <BadgeCheck size={15} />
+                            {speciality}
+                          </span>
+
+                          <span className="inline-flex items-center gap-2 rounded-full bg-slate-950/90 px-4 py-2 text-xs font-black text-white shadow-sm backdrop-blur">
+                            <Star size={15} className="fill-white" />
+                            {rating ? `${rating.toFixed(1)} / 5` : "Nouveau"}
+                          </span>
+                        </div>
+
+                        <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
                           {intervenant.name || "Intervenant Gotfit"}
                         </h1>
 
-                        <p className="mt-2 text-sm font-black uppercase tracking-[0.16em] text-orange-600">
+                        <p className="mt-3 text-base font-bold text-white/80">
+                          {coachTitle}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <Link
+                        href={getProtectedUrl(reservationUrl)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700"
+                      >
+                        Réserver
+                        <CalendarCheck size={18} />
+                      </Link>
+
+                      <Link
+                        href={getProtectedUrl(messageUrl)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-4 text-sm font-black text-slate-950 transition hover:bg-orange-50"
+                      >
+                        Contacter
+                        <MessageCircle size={18} />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[0.9fr_1.6fr] lg:p-10">
+                  <aside className="relative">
+                    <div className="rounded-[2rem] border border-orange-100 bg-white p-5 shadow-xl lg:sticky lg:top-28">
+                      <div className="text-center">
+                        <p className="text-sm font-black uppercase tracking-[0.16em] text-orange-600">
                           {speciality}
                         </p>
+                        <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+                          {coachTitle}
+                        </h2>
                       </div>
 
                       <div className="mt-5 grid gap-3">
@@ -405,10 +353,7 @@ export default function IntervenantDetailPage() {
                             href={`tel:${intervenant.phone}`}
                             className="flex items-center gap-3 rounded-2xl bg-orange-50 p-4 transition hover:bg-orange-100"
                           >
-                            <Phone
-                              className="shrink-0 text-orange-600"
-                              size={20}
-                            />
+                            <Phone className="shrink-0 text-orange-600" size={20} />
                             <span className="text-sm font-bold text-slate-600">
                               {intervenant.phone}
                             </span>
@@ -420,10 +365,7 @@ export default function IntervenantDetailPage() {
                             href={`mailto:${intervenant.email}`}
                             className="flex items-center gap-3 rounded-2xl bg-orange-50 p-4 transition hover:bg-orange-100"
                           >
-                            <Mail
-                              className="shrink-0 text-orange-600"
-                              size={20}
-                            />
+                            <Mail className="shrink-0 text-orange-600" size={20} />
                             <span className="break-all text-sm font-bold text-slate-600">
                               {intervenant.email}
                             </span>
@@ -433,7 +375,7 @@ export default function IntervenantDetailPage() {
 
                       <div className="mt-5 grid grid-cols-2 gap-3">
                         <Link
-                          href={`/reservation?intervenant_id=${intervenant.id}`}
+                          href={getProtectedUrl(reservationUrl)}
                           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700"
                         >
                           Réserver
@@ -441,7 +383,7 @@ export default function IntervenantDetailPage() {
                         </Link>
 
                         <Link
-                          href={`/messages?user_id=${intervenant.id}`}
+                          href={getProtectedUrl(messageUrl)}
                           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800"
                         >
                           Contacter
@@ -459,11 +401,11 @@ export default function IntervenantDetailPage() {
                         </div>
 
                         <strong className="block text-3xl font-black">
-                          {rating.toFixed(1)}
+                          {rating ? rating.toFixed(1) : "Nouveau"}
                         </strong>
 
                         <span className="mt-1 block text-sm font-bold text-slate-500">
-                          Note moyenne
+                          {reviewsCount} avis client
                         </span>
                       </div>
 
@@ -472,12 +414,12 @@ export default function IntervenantDetailPage() {
                           <HeartPulse size={22} />
                         </div>
 
-                        <strong className="block text-3xl font-black">
-                          {reviewsCount}
+                        <strong className="block text-2xl font-black">
+                          {experience || "À compléter"}
                         </strong>
 
                         <span className="mt-1 block text-sm font-bold text-slate-500">
-                          Avis client
+                          Expérience
                         </span>
                       </div>
 
@@ -487,7 +429,7 @@ export default function IntervenantDetailPage() {
                         </div>
 
                         <strong className="block text-xl font-black">
-                          Vérifié
+                          Profil
                         </strong>
 
                         <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-black text-orange-700">
@@ -506,43 +448,97 @@ export default function IntervenantDetailPage() {
                         À propos de {intervenant.name || "cet intervenant"}
                       </h2>
 
-                      <p className="mt-5 text-base font-semibold leading-8 text-slate-600">
-                        {intervenant.bio ||
-                          "Cet intervenant Gotfit est disponible pour proposer un accompagnement personnalisé selon vos objectifs de bien-être, de remise en forme ou de suivi sportif."}
+                      <p className="mt-5 whitespace-pre-line text-base font-semibold leading-8 text-slate-600">
+                        {description}
                       </p>
+
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <InfoPill>
+                          <BadgeCheck size={14} />
+                          {speciality}
+                        </InfoPill>
+
+                        {experience && (
+                          <InfoPill>
+                            <HeartPulse size={14} />
+                            {experience}
+                          </InfoPill>
+                        )}
+
+                        {video && (
+                          <InfoPill>
+                            <Video size={14} />
+                            Vidéo disponible
+                          </InfoPill>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="mt-6 rounded-[2rem] border border-orange-100 bg-orange-50 p-6 sm:p-8">
-                      <span className="mb-4 inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-orange-700">
-                        Service principal
-                      </span>
+                    {video && (
+                      <div className="mt-6 overflow-hidden rounded-[2rem] border border-orange-100 bg-slate-950 p-4 shadow-sm">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-2 text-white">
+                          <span className="inline-flex items-center gap-2 text-sm font-black">
+                            <Video size={18} />
+                            Vidéo de présentation
+                          </span>
+                          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/70">
+                            {getVideoDurationLabel(intervenant)}
+                          </span>
+                        </div>
 
-                      <h2 className="text-3xl font-black tracking-tight">
-                        {speciality}
-                      </h2>
+                        <video
+                          controls
+                          src={video}
+                          className="aspect-video w-full rounded-[1.5rem] bg-black object-cover"
+                        />
+                      </div>
+                    )}
 
-                      <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
-                        Vous pouvez réserver une séance avec cet intervenant ou
-                        le contacter directement pour plus d’informations avant
-                        de confirmer votre accompagnement.
-                      </p>
+                    <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                      <div className="rounded-[2rem] border border-orange-100 bg-orange-50 p-6 sm:p-8">
+                        <span className="mb-4 inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-orange-700">
+                          Certifications
+                        </span>
 
-                      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                        <Link
-                          href={`/reservation?intervenant_id=${intervenant.id}`}
-                          className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-7 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700"
-                        >
-                          Réserver une séance
-                          <CalendarCheck size={18} />
-                        </Link>
+                        <div className="flex flex-wrap gap-2">
+                          {certifications.length ? (
+                            certifications.map((item) => (
+                              <span
+                                key={item}
+                                className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-slate-700"
+                              >
+                                {item}
+                              </span>
+                            ))
+                          ) : (
+                            <p className="text-sm font-semibold leading-7 text-slate-600">
+                              Certifications à compléter dans le profil intervenant.
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
-                        <Link
-                          href={`/messages?user_id=${intervenant.id}`}
-                          className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-7 py-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-slate-800"
-                        >
-                          Envoyer un message
-                          <MessageCircle size={18} />
-                        </Link>
+                      <div className="rounded-[2rem] border border-orange-100 bg-orange-50 p-6 sm:p-8">
+                        <span className="mb-4 inline-flex rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-orange-700">
+                          Langues
+                        </span>
+
+                        <div className="flex flex-wrap gap-2">
+                          {languages.length ? (
+                            languages.map((item) => (
+                              <span
+                                key={item}
+                                className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-slate-700"
+                              >
+                                {item}
+                              </span>
+                            ))
+                          ) : (
+                            <p className="text-sm font-semibold leading-7 text-slate-600">
+                              Langues à compléter dans le profil intervenant.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </section>
