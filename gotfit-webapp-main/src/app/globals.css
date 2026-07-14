@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --background: #faf8f3;
+  --foreground: #0f172a;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.gotfit-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.gotfit-input::placeholder {
+  color: #94a3b8;
+}
+
+.gotfit-input:focus {
+  border-color: #f97316;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+}
