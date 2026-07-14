@@ -31,7 +31,12 @@ import {
   formatDate,
   formatMoney,
   getAnnonceTitle,
-  getReservationCalendarUrl,
+  canAddReservationToCalendar,
+  downloadReservationCalendar,
+  getReservationVisioHref,
+  canAccessReservationVisio,
+  isReservationOnline,
+  isReservationPaid,
 } from "@/lib/marketplace";
 
 const statusLabels: Record<string, string> = {
@@ -111,6 +116,7 @@ export default function ReservationsPage() {
   const [success, setSuccess] = useState("");
   const [disputeId, setDisputeId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
+  const [calendarLoading, setCalendarLoading] = useState<number | null>(null);
 
   const counters = useMemo(() => {
     return {
@@ -155,6 +161,20 @@ export default function ReservationsPage() {
 
     return () => window.clearTimeout(timer);
   }, []);
+
+
+  async function handleCalendar(reservation: Reservation) {
+    try {
+      setCalendarLoading(reservation.id);
+      setError("");
+      await downloadReservationCalendar(reservation);
+      setSuccess("Le fichier calendrier a été téléchargé. Ouvrez-le pour ajouter la séance à Google Calendar, Outlook ou Apple Calendar.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible de préparer le calendrier."));
+    } finally {
+      setCalendarLoading(null);
+    }
+  }
 
   async function handleConfirm(reservationId: number) {
     try {
@@ -407,15 +427,48 @@ export default function ReservationsPage() {
                     </div>
 
                     <div className="grid gap-3">
-                      <a
-                        href={getReservationCalendarUrl(reservation.id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-200 bg-white px-5 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-50"
+                      <button
+                        type="button"
+                        onClick={() => handleCalendar(reservation)}
+                        disabled={
+                          !canAddReservationToCalendar(reservation) ||
+                          calendarLoading === reservation.id
+                        }
+                        title={
+                          canAddReservationToCalendar(reservation)
+                            ? "Télécharger le rendez-vous au format .ics"
+                            : "Disponible après paiement"
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-200 bg-white px-5 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                       >
-                        <CalendarCheck size={17} />
-                        Ajouter au calendrier
-                      </a>
+                        {calendarLoading === reservation.id ? (
+                          <Loader2 className="animate-spin" size={17} />
+                        ) : (
+                          <CalendarCheck size={17} />
+                        )}
+                        {canAddReservationToCalendar(reservation)
+                          ? "Ajouter au calendrier"
+                          : "Calendrier après paiement"}
+                      </button>
+
+                      {canAccessReservationVisio(reservation) && (
+                        <Link
+                          href={getReservationVisioHref(reservation)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white transition hover:bg-orange-700"
+                        >
+                          Accéder à la visio
+                          <ArrowRight size={17} />
+                        </Link>
+                      )}
+
+                      {isReservationPaid(reservation) &&
+                        isReservationOnline(reservation) &&
+                        !reservation.visio_session_id &&
+                        !reservation.visio_session?.id && (
+                          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-bold text-amber-700">
+                            Salle visio en préparation. Actualisez dans quelques instants.
+                          </div>
+                        )}
 
                       {reservation.payment_status === "pending" && (
                         <Link

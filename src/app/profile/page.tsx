@@ -99,6 +99,10 @@ type Reservation = {
   amount?: number | string | null;
   total?: number | string | null;
   price?: number | string | null;
+  total_client_amount?: number | string | null;
+  currency?: string | null;
+  is_paid?: boolean | number | null;
+  paid_at?: string | null;
   created_at?: string;
   date?: string | null;
   start_at?: string | null;
@@ -402,13 +406,29 @@ export default function ProfilePage() {
     return "missing";
   }, [isIntervenantAccount, user?.stripe_account_id, user?.stripe_onboarding_completed]);
 
+  const paidReservations = useMemo(() => {
+    return reservations.filter((item) =>
+      item.payment_status === "paid" || item.is_paid === true || item.is_paid === 1
+    );
+  }, [reservations]);
+
   const totalPaid = useMemo(() => {
-    return payments.reduce((total, item) => {
-      const rawAmount = item.amount || item.total || 0;
+    if (payments.length) {
+      return payments.reduce((total, item) => {
+        const rawAmount = item.amount ?? item.total ?? item.reservation?.total_client_amount ?? item.reservation?.price ?? 0;
+        const amount = Number(rawAmount);
+        return total + (Number.isNaN(amount) ? 0 : amount);
+      }, 0);
+    }
+
+    return paidReservations.reduce((total, item) => {
+      const rawAmount = item.total_client_amount ?? item.total ?? item.amount ?? item.price ?? item.annonce?.price ?? 0;
       const amount = Number(rawAmount);
       return total + (Number.isNaN(amount) ? 0 : amount);
     }, 0);
-  }, [payments]);
+  }, [payments, paidReservations]);
+
+  const paymentCount = payments.length || paidReservations.length;
 
   useEffect(() => {
     const localUser = getCurrentUser();
@@ -490,7 +510,10 @@ export default function ProfilePage() {
       }
 
       const paymentsPayload =
-        (await apiGet<any>("/payments")) || (await apiGet<any>("/payements"));
+        (await apiGet<any>("/my-payments")) ||
+        (await apiGet<any>("/payments/me")) ||
+        (await apiGet<any>("/payments")) ||
+        (await apiGet<any>("/payements"));
 
       setPayments(normalizeArray<Payment>(paymentsPayload));
     } catch (err) {
@@ -1302,7 +1325,7 @@ export default function ProfilePage() {
                       Paiements
                     </span>
                   </div>
-                  <strong className="text-sm font-black">{payments.length}</strong>
+                  <strong className="text-sm font-black">{paymentCount}</strong>
                 </div>
 
                 <div className="flex items-center justify-between rounded-2xl bg-orange-600 p-4 text-white">
@@ -1474,9 +1497,33 @@ export default function ProfilePage() {
                     </div>
                   );
                 })
+              ) : paidReservations.length ? (
+                paidReservations.slice(0, 5).map((reservation) => (
+                  <div
+                    key={`reservation-payment-${reservation.id}`}
+                    className="rounded-2xl border border-orange-100 bg-orange-50 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <strong className="block text-sm font-black text-slate-950">
+                          {reservation.annonce?.title || reservation.annonce?.name || `Réservation #${reservation.id}`}
+                        </strong>
+                        <span className="mt-1 block text-xs font-semibold text-slate-500">
+                          {formatDateTime(reservation.paid_at || reservation.created_at)}
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+                        Payé
+                      </span>
+                    </div>
+                    <div className="mt-3 text-sm font-black text-slate-950">
+                      {formatMoney(reservation.total_client_amount ?? reservation.total ?? reservation.amount ?? reservation.price ?? reservation.annonce?.price)}
+                    </div>
+                  </div>
+                ))
               ) : (
                 <div className="rounded-2xl bg-orange-50 p-5 text-sm font-semibold text-slate-500">
-                  Aucun paiement trouvé ou endpoint paiement réservé à l’admin.
+                  Aucun paiement confirmé pour le moment.
                 </div>
               )}
             </div>

@@ -24,7 +24,9 @@ import {
   fetchPlanning,
   formatMoney,
   getAnnonceTitle,
-  getReservationCalendarUrl,
+  canAddReservationToCalendar,
+  downloadReservationCalendar,
+  getReservationVisioHref,
 } from "@/lib/marketplace";
 
 const statusLabels: Record<string, string> = {
@@ -101,6 +103,8 @@ export default function PlanningPage() {
   const [to, setTo] = useState(initialRange.to);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [calendarLoading, setCalendarLoading] = useState<number | null>(null);
 
   const stats = useMemo(() => {
     return {
@@ -128,6 +132,21 @@ export default function PlanningPage() {
       setError(getErrorMessage(err, "Impossible de charger le planning."));
     } finally {
       setLoading(false);
+    }
+  }
+
+
+  async function handleCalendar(event: PlanningEvent) {
+    try {
+      setCalendarLoading(event.id);
+      setError("");
+      setSuccess("");
+      await downloadReservationCalendar(event);
+      setSuccess("Le rendez-vous a été téléchargé au format calendrier (.ics).");
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible de préparer le calendrier."));
+    } finally {
+      setCalendarLoading(null);
     }
   }
 
@@ -219,6 +238,13 @@ export default function PlanningPage() {
             </div>
           )}
 
+          {success && (
+            <div className="mb-5 flex items-start gap-3 rounded-[2rem] border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-700">
+              <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
+              {success}
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center rounded-[2rem] bg-white py-16 text-sm font-black text-orange-700 shadow-sm">
               <Loader2 className="mr-3 animate-spin" size={20} />
@@ -281,15 +307,35 @@ export default function PlanningPage() {
                       </div>
 
                       <div className="grid gap-3">
-                        <a
-                          href={event.calendar_url || getReservationCalendarUrl(event.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-100"
+                        <button
+                          type="button"
+                          onClick={() => handleCalendar(event)}
+                          disabled={
+                            !canAddReservationToCalendar(event) ||
+                            calendarLoading === event.id
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                         >
-                          <CalendarCheck size={17} />
-                          Ajouter au calendrier
-                        </a>
+                          {calendarLoading === event.id ? (
+                            <Loader2 className="animate-spin" size={17} />
+                          ) : (
+                            <CalendarCheck size={17} />
+                          )}
+                          {canAddReservationToCalendar(event)
+                            ? "Ajouter au calendrier"
+                            : "Disponible après paiement"}
+                        </button>
+
+                        {event.payment_status === "paid" &&
+                          Boolean(event.annonce?.is_online) && (
+                            <Link
+                              href={getReservationVisioHref(event)}
+                              className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white transition hover:bg-orange-700"
+                            >
+                              Ouvrir la visio
+                              <ArrowRight size={17} />
+                            </Link>
+                          )}
 
                         <Link
                           href="/reservations"

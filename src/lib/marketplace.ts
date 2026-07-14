@@ -83,6 +83,8 @@ export type Reservation = {
   client?: GotfitUser | null;
   intervenant?: GotfitUser | null;
   calendar_url?: string | null;
+  visio_session_id?: number | null;
+  visio_session?: { id?: number | null; status?: string | null } | null;
   start?: string | null;
   end?: string | null;
 };
@@ -102,6 +104,7 @@ export type ReservationPayload = {
 
 export type PaymentIntentPayload = {
   clientSecret: string;
+  client_secret?: string;
   payment_intent_id: string;
   amount: string | number;
   currency: string;
@@ -303,11 +306,13 @@ export async function createPaymentIntent(reservationId: number) {
     }
   );
 
-  if (!payload.clientSecret) {
+  const clientSecret = payload.clientSecret || payload.client_secret;
+
+  if (!clientSecret) {
     throw new Error("Le paiement a été initialisé, mais la clé Stripe est introuvable.");
   }
 
-  return payload;
+  return { ...payload, clientSecret };
 }
 
 export async function reserveAndCreatePaymentIntent(
@@ -379,6 +384,155 @@ export async function finishReservation(reservationId: number) {
 
 export function getReservationCalendarUrl(reservationId: number) {
   return `${API_BASE_URL}/reservation/${reservationId}/calendar.ics`;
+}
+
+export function isReservationPaid(reservation: Reservation) {
+  return (
+    reservation.payment_status === "paid" ||
+    reservation.is_paid === true ||
+    reservation.is_paid === 1
+  );
+}
+
+export function isReservationOnline(reservation: Reservation) {
+  const type = (reservation.annonce?.type_prestation || "").toLowerCase();
+  return Boolean(
+    reservation.annonce?.is_online ||
+    ["online", "en_ligne", "en ligne", "visio", "video"].includes(type)
+  );
+}
+
+export function canAccessReservationVisio(reservation: Reservation) {
+  const status = reservation.prestation_status || reservation.status || "";
+  return (
+    isReservationPaid(reservation) &&
+    isReservationOnline(reservation) &&
+    Boolean(reservation.visio_session_id || reservation.visio_session?.id) &&
+    !["cancelled", "annulee", "refunded", "remboursee"].includes(status)
+  );
+}
+
+export function canAddReservationToCalendar(reservation: Reservation) {
+  const paymentPaid = isReservationPaid(reservation);
+  const status = reservation.prestation_status || reservation.status || "";
+
+  return (
+    paymentPaid &&
+    !["cancelled", "annulee", "refunded", "remboursee", "payment_failed"].includes(status)
+  );
+}
+
+export function getReservationVisioHref(reservation: Reservation) {
+  const sessionId = reservation.visio_session_id || reservation.visio_session?.id;
+  return sessionId ? `/visio/${sessionId}` : "/visio";
+}
+
+function escapeIcsText(value: string) {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function getReservationDateTime(reservation: Reservation) {
+  const date = reservation.reservation_date || reservation.start?.slice(0, 10);
+  const time = reservation.reservation_time || reservation.start?.slice(11, 19) || "09:00:00";
+  if (!date) return null;
+
+  const start = new Date(`${date}T${time}`);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const duration = Number(reservation.annonce?.duration || 60);
+  const end = reservation.end ? new Date(reservation.end) : new Date(start.getTime() + duration * 60_000);
+  return { start, end };
+}
+
+function toIcsUtc(value: Date) {
+  return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function createReservationIcs(reservation: Reservation) {
+  const range = getReservationDateTime(reservation);
+  if (!range) {
+    throw new Error("La date ou l’heure de cette réservation est incomplète.");
+  }
+
+  const title = getAnnonceTitle(reservation.annonce);
+  const online = Boolean(reservation.annonce?.is_online);
+  const location = online
+    ? "Séance en ligne Gotfit"
+    : reservation.annonce?.location || reservation.annonce?.address || reservation.annonce?.city || "Gotfit";
+  const description = online
+    ? "Retrouvez l’accès à la séance depuis votre espace Gotfit, rubrique Visio."
+    : "Réservation Gotfit confirmée.";
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Gotfit//Reservation//FR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:gotfit-reservation-${reservation.id}@gotfit.tech`,
+    `DTSTAMP:${toIcsUtc(new Date())}`,
+    `DTSTART:${toIcsUtc(range.start)}`,
+    `DTEND:${toIcsUtc(range.end)}`,
+    `SUMMARY:${escapeIcsText(title)}`,
+    `DESCRIPTION:${escapeIcsText(description)}`,
+    `LOCATION:${escapeIcsText(location)}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+}
+
+function saveCalendarBlob(blob: Blob, reservationId: number) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = `gotfit-reservation-${reservationId}.ics`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+export async function downloadReservationCalendar(reservation: Reservation) {
+  if (!canAddReservationToCalendar(reservation)) {
+    throw new Error("Le calendrier sera disponible après confirmation du paiement.");
+  }
+
+  const token = getToken();
+
+  try {
+    const response = await fetch(
+      reservation.calendar_url || getReservationCalendarUrl(reservation.id),
+      {
+        headers: {
+          Accept: "text/calendar",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Calendrier API indisponible (${response.status}).`);
+    }
+
+    const content = await response.blob();
+    saveCalendarBlob(
+      content.type ? content : new Blob([content], { type: "text/calendar;charset=utf-8" }),
+      reservation.id
+    );
+    return;
+  } catch {
+    const fallback = createReservationIcs(reservation);
+    saveCalendarBlob(
+      new Blob([fallback], { type: "text/calendar;charset=utf-8" }),
+      reservation.id
+    );
+  }
 }
 
 export async function confirmPrestation(reservationId: number) {

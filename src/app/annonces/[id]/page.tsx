@@ -90,7 +90,7 @@ function CheckoutForm({
       const result = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/webapp/reservations?payment=success&reservation=${reservation.id}`,
+          return_url: `${window.location.origin}${process.env.NEXT_PUBLIC_BASE_PATH || ""}/reservations?payment=success&reservation=${reservation.id}`,
         },
       });
 
