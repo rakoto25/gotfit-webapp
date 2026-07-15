@@ -187,7 +187,7 @@ export default function ContactPage() {
 
               <div>
                 <h3>Localisation</h3>
-                <p>Antananarivo, Madagascar</p>
+                <p>France</p>
               </div>
             </article>
 
