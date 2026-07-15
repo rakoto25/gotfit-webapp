@@ -1007,7 +1007,7 @@ export default function ProfilePage() {
                     value={city}
                     onChange={(event) => setCity(event.target.value)}
                     className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white"
-                    placeholder="Paris, Antananarivo..."
+                    placeholder="Paris, France..."
                   />
                 </div>
 
