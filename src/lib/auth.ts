@@ -52,3 +52,11 @@ export function hasRole(user: User | null, role: string): boolean {
     return roleName === searchedRole || roleSlug === searchedRole;
   });
 }
+
+export function getPostAuthRoute(user: User): string {
+  if (hasRole(user, "admin")) return "/admin/dashboard";
+  if (hasRole(user, "intervenant")) return "/intervenant/dashboard";
+  if (hasRole(user, "client")) return "/client/dashboard";
+
+  return "/profile";
+}

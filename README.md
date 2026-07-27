@@ -1,37 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gotfit Webapp
 
-## Getting Started
+Webapp Next.js 16 de Gotfit, pensée pour les clients, coachs, structures et
+administrateurs.
 
-First, run the development server:
+## Prérequis
+
+- Node.js 20 ou supérieur
+- npm
+- L'API Gotfit Laravel
+
+## Installation locale
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrir `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=000000000000-example.apps.googleusercontent.com
+```
 
-## Learn More
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` doit contenir le même identifiant OAuth que
+`GOOGLE_CLIENT_ID` dans Laravel.
 
-To learn more about Next.js, take a look at the following resources:
+## Expérience d'authentification
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Le bouton **S'inscrire** du header ouvre une page qui présente deux parcours.
+- L'utilisateur peut remplir le formulaire classique ou choisir
+  **Continuer avec Google**.
+- Le choix **Client** ou **Coach** est disponible dans les deux parcours.
+- L'inscription classique ouvre immédiatement la session après la création du
+  compte.
+- Les comptes existants peuvent utiliser Google si l'adresse email correspond.
+- La connexion email/mot de passe existante reste disponible.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Vérification
 
-## Deploy on Vercel
+```bash
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# gotfit-webapp
+La nouvelle interface inclut une page d'accueil complète, une navigation
+responsive, un centre d'aide, les écrans Google et une carte sociale dédiée.

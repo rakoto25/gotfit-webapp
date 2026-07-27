@@ -4,7 +4,7 @@ export const API_BASE_URL = normalizeApiBaseUrl(
 
 export const API_ORIGIN_URL = API_BASE_URL.replace(/\/api\/?$/, "");
 
-export const LOGO_URL = `${API_ORIGIN_URL}/images/logo.png`;
+export const LOGO_URL = "/brand/gotfit-logo.png";
 
 export function normalizeApiBaseUrl(url: string) {
   const cleanUrl = String(url || "").trim().replace(/\/+$/, "");
