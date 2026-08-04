@@ -1,20 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BadgeCheck,
+  Building2,
   CalendarCheck,
   Camera,
+  CheckCircle2,
   CreditCard,
+  FileBadge2,
   Loader2,
   LogOut,
   Mail,
   MapPin,
   Pencil,
   Phone,
+  RefreshCw,
   Save,
   ShieldCheck,
   UserRound,
@@ -22,93 +35,110 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+
+import DocumentUploader, {
+  type ExistingDocument,
+} from "@/components/uploads/DocumentUploader";
+
 import {
   clearAuth,
   getCurrentUser,
+  getPostAuthRoute,
   getToken,
   hasRole,
-  saveAuth,
+  updateCurrentUser,
 } from "@/lib/auth";
-import { API_BASE_URL, getAssetUrl } from "@/lib/api-config";
-import type { User } from "@/types/auth";
+
+import {
+  getApiUrl,
+  getAssetUrl,
+} from "@/lib/api-config";
+
+import {
+  inferProfessionalDocumentType,
+  normalizeCoachDocumentStatus,
+  type CoachCredentialDeleteResponse,
+  type CoachCredentialsResponse,
+  type CoachCredentialUploadResponse,
+  type CoachDocument,
+  type CoachProfileResponse,
+  type CoachProfileUpdateResponse,
+  type CoachUser,
+  type StripeConnectOnboardingResponse,
+  type StripeConnectStatusResponse,
+} from "@/types/coach";
 
 const FALLBACK_COVER =
-  "linear-gradient(135deg, #fff7ed 0%, #fed7aa 45%, #fb923c 100%)";
+  "linear-gradient(135deg, #fff7ed 0%, #ffedd5 35%, #fdba74 70%, #f97316 100%)";
 
-type ProfileResponse = {
-  user?: ProfileUser;
-  data?: ProfileUser;
-  message?: string;
-};
+const MAX_IMAGE_SIZE =
+  8 * 1024 * 1024;
 
-type ProfileUpdateResponse = {
-  user?: ProfileUser;
-  data?: ProfileUser;
-  message?: string;
-  errors?: Record<string, string[]>;
-};
+const MAX_VIDEO_SIZE =
+  100 * 1024 * 1024;
 
-type ProfileUser = User & {
-  phone?: string | null;
-  address?: string | null;
-  bio?: string | null;
-  photo?: string | null;
-  photo_url?: string | null;
-  cover_photo?: string | null;
-  cover_photo_url?: string | null;
-  city?: string | null;
-  location?: string | null;
-  account_status?: string | null;
-  coach_title?: string | null;
-  coach_short_description?: string | null;
-  coach_speciality?: string | null;
-  coach_experience_years?: number | string | null;
-  coach_certifications?: string[] | string | null;
-  coach_languages?: string[] | string | null;
-  presentation_video?: string | null;
-  presentation_video_url?: string | null;
-  presentation_video_duration_seconds?: number | string | null;
-  stripe_account_id?: string | null;
-  stripe_onboarding_completed?: boolean | null;
-  created_at?: string;
-  updated_at?: string;
-};
+const MAX_VIDEO_DURATION_SECONDS =
+  60;
 
-type StripeConnectResponse = {
-  status?: number;
-  url?: string;
-  stripe_account_id?: string | null;
-  message?: string;
-};
+/**
+ * Alias locaux permettant de conserver les noms
+ * utilisés dans le reste de cette page.
+ */
+type ProfileDocument =
+  CoachDocument;
 
-type StripeConnectStatusResponse = {
-  status?: number;
-  connected?: boolean;
-  onboarding_completed?: boolean;
-  charges_enabled?: boolean;
-  payouts_enabled?: boolean;
-  stripe_account_id?: string | null;
-  message?: string;
-};
+type ProfileUser =
+  CoachUser;
 
+type ProfileResponse =
+  CoachProfileResponse;
+
+type ProfileUpdateResponse =
+  CoachProfileUpdateResponse;
+
+type CredentialUploadResponse =
+  CoachCredentialUploadResponse;
+
+type DeleteDocumentResponse =
+  CoachCredentialDeleteResponse;
+
+type StripeConnectResponse =
+  StripeConnectOnboardingResponse;
+
+/**
+ * Réservation renvoyée par :
+ *
+ * GET /api/reservation/client
+ * GET /api/reservation/intervenant
+ */
 type Reservation = {
   id: number;
+
   status?: string | null;
   reservation_status?: string | null;
   payment_status?: string | null;
+
   amount?: number | string | null;
   total?: number | string | null;
   price?: number | string | null;
-  total_client_amount?: number | string | null;
+  total_client_amount?:
+    | number
+    | string
+    | null;
+
   currency?: string | null;
+
   is_paid?: boolean | number | null;
   paid_at?: string | null;
-  created_at?: string;
+
+  created_at?: string | null;
   date?: string | null;
   start_at?: string | null;
   end_at?: string | null;
+
   client?: ProfileUser | null;
   intervenant?: ProfileUser | null;
+
   annonce?: {
     id?: number;
     title?: string | null;
@@ -117,799 +147,2364 @@ type Reservation = {
   } | null;
 };
 
+/**
+ * Paiement renvoyé par :
+ *
+ * GET /api/my-payments
+ */
 type Payment = {
   id: number;
+
   amount?: number | string | null;
   total?: number | string | null;
+
   status?: string | null;
   payment_status?: string | null;
+
   method?: string | null;
   provider?: string | null;
   reference?: string | null;
-  created_at?: string;
+
+  created_at?: string | null;
+
   reservation?: Reservation | null;
 };
 
-function normalizeArray<T>(payload: any): T[] {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.payments)) return payload.payments;
-  if (Array.isArray(payload?.payements)) return payload.payements;
-  if (Array.isArray(payload?.reservations)) return payload.reservations;
-  return [];
+/**
+ * Format des erreurs Laravel.
+ */
+type ApiErrorPayload = {
+  message?: string;
+
+  errors?: Record<
+    string,
+    string[]
+  >;
+};
+
+/* =========================================================
+   OUTILS DE NORMALISATION
+========================================================= */
+
+function normalizeArray<T>(
+  payload: unknown,
+): T[] {
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (
+    !payload ||
+    typeof payload !== "object"
+  ) {
+    return [];
+  }
+
+  const objectPayload =
+    payload as Record<
+      string,
+      unknown
+    >;
+
+  const possibleArrays = [
+    objectPayload.data,
+    objectPayload.payments,
+    objectPayload.payements,
+    objectPayload.reservations,
+    objectPayload.documents,
+    objectPayload.credentials,
+  ];
+
+  const foundArray =
+    possibleArrays.find(
+      Array.isArray,
+    );
+
+  return foundArray
+    ? (foundArray as T[])
+    : [];
 }
 
-function getFullUrl(url?: string | null) {
-  return getAssetUrl(url);
+function getUserPhoto(
+  user: ProfileUser | null,
+): string {
+  return getAssetUrl(
+    user?.photo_url ||
+      user?.photo,
+  );
 }
 
-function getUserPhoto(user: ProfileUser | null) {
-  return getFullUrl(user?.photo_url || user?.photo);
+function getUserCover(
+  user: ProfileUser | null,
+): string {
+  return getAssetUrl(
+    user?.cover_photo_url ||
+      user?.cover_photo,
+  );
 }
 
-function getUserCover(user: ProfileUser | null) {
-  return getFullUrl(user?.cover_photo_url || user?.cover_photo);
+function getUserVideo(
+  user: ProfileUser | null,
+): string {
+  return getAssetUrl(
+    user?.presentation_video_url ||
+      user?.presentation_video,
+  );
 }
 
-function getUserVideo(user: ProfileUser | null) {
-  return getFullUrl(user?.presentation_video_url || user?.presentation_video);
-}
+function toInputValue(
+  value: unknown,
+): string {
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
 
-function toInputValue(value: unknown) {
-  if (Array.isArray(value)) return value.join(", ");
   return String(value ?? "");
 }
 
-function getVideoDuration(file: File) {
-  return new Promise<number>((resolve, reject) => {
-    const video = document.createElement("video");
-    const objectUrl = URL.createObjectURL(file);
+function formatBytes(
+  size: number,
+): string {
+  if (size < 1024) {
+    return `${size} octet${
+      size > 1 ? "s" : ""
+    }`;
+  }
 
-    video.preload = "metadata";
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(video.duration || 0);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Impossible de lire la durée de la vidéo."));
-    };
-    video.src = objectUrl;
-  });
+  if (
+    size <
+    1024 * 1024
+  ) {
+    return `${Math.round(
+      size / 1024,
+    )} Ko`;
+  }
+
+  return `${(
+    size /
+    (1024 * 1024)
+  ).toFixed(1)} Mo`;
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "Non défini";
+function formatDate(
+  value?: string | null,
+): string {
+  if (!value) {
+    return "Non défini";
+  }
 
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(
+    "fr-FR",
+    {
       day: "2-digit",
       month: "long",
       year: "numeric",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
+    },
+  ).format(date);
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return "Non défini";
+function formatDateTime(
+  value?: string | null,
+): string {
+  if (!value) {
+    return "Non défini";
+  }
 
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(
+    "fr-FR",
+    {
       day: "2-digit",
       month: "short",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
+    },
+  ).format(date);
 }
 
-function formatMoney(value?: number | string | null) {
-  if (value === null || value === undefined || value === "") {
-    return "0 €";
+function formatMoney(
+  value?:
+    | number
+    | string
+    | null,
+  currency = "EUR",
+): string {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return new Intl.NumberFormat(
+      "fr-FR",
+      {
+        style: "currency",
+        currency,
+      },
+    ).format(0);
   }
 
-  const numberValue = Number(value);
+  const numberValue =
+    Number(value);
 
-  if (Number.isNaN(numberValue)) {
-    return `${value} €`;
+  if (
+    Number.isNaN(numberValue)
+  ) {
+    return `${value} ${currency}`;
   }
 
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(numberValue);
+  return new Intl.NumberFormat(
+    "fr-FR",
+    {
+      style: "currency",
+      currency,
+    },
+  ).format(numberValue);
 }
 
-function getErrorMessage(result: ProfileUpdateResponse | null) {
-  if (!result) return "Une erreur est survenue.";
+function getErrorMessage(
+  result:
+    | ApiErrorPayload
+    | null,
+  fallback =
+    "Une erreur est survenue.",
+): string {
+  if (result?.errors) {
+    const firstError =
+      Object.values(
+        result.errors,
+      )
+        .flat()
+        .find(Boolean);
 
-  if (result.errors) {
-    const firstError = Object.values(result.errors)[0]?.[0];
-    if (firstError) return firstError;
+    if (firstError) {
+      return firstError;
+    }
   }
 
-  return result.message || "Une erreur est survenue.";
+  return (
+    result?.message ||
+    fallback
+  );
 }
 
-function getDashboardUrl(user: ProfileUser | null) {
-  if (hasRole(user, "admin")) return "/admin/dashboard";
-  if (hasRole(user, "intervenant")) return "/intervenant/dashboard";
-  return "/client/dashboard";
+function getDashboardUrl(
+  user: ProfileUser | null,
+): string {
+  if (!user) {
+    return "/profile";
+  }
+
+  return getPostAuthRoute(
+    user,
+  );
 }
 
-function getMainRole(user: ProfileUser | null) {
-  if (hasRole(user, "admin")) return "Admin";
-  if (hasRole(user, "intervenant")) return "Intervenant";
-  if (hasRole(user, "client")) return "Client";
+function getMainRole(
+  user: ProfileUser | null,
+): string {
+  if (
+    hasRole(user, "admin")
+  ) {
+    return "Administrateur";
+  }
+
+  if (
+    hasRole(
+      user,
+      "intervenant",
+    )
+  ) {
+    return "Coach";
+  }
+
+  if (
+    hasRole(user, "client")
+  ) {
+    return "Coaché";
+  }
+
   return "Utilisateur";
 }
 
-function getStatusLabel(status?: string | null) {
-  if (!status) return "Non défini";
+/* =========================================================
+   STATUTS
+========================================================= */
 
-  const labels: Record<string, string> = {
+function getStatusLabel(
+  status?: string | null,
+): string {
+  if (!status) {
+    return "Non défini";
+  }
+
+  const normalizedStatus =
+    status
+      .trim()
+      .toLowerCase();
+
+  const labels: Record<
+    string,
+    string
+  > = {
     approved: "Approuvé",
+    valide: "Validé",
+    "validé": "Validé",
     pending: "En attente",
+    en_attente: "En attente",
     rejected: "Refusé",
+    refuse: "Refusé",
+    "refusé": "Refusé",
     active: "Actif",
     inactive: "Inactif",
+    suspended: "Suspendu",
     paid: "Payé",
     unpaid: "Non payé",
     completed: "Terminé",
     cancelled: "Annulé",
+    canceled: "Annulé",
     confirmed: "Confirmé",
+    processing: "En traitement",
+    refunded: "Remboursé",
   };
 
-  return labels[status] || status;
+  return (
+    labels[normalizedStatus] ||
+    status
+  );
 }
 
-async function apiGet<T>(endpoint: string): Promise<T | null> {
-  const token = getToken();
+function getStatusClasses(
+  status?: string | null,
+): string {
+  const normalizedStatus =
+    status
+      ?.trim()
+      .toLowerCase() || "";
 
-  if (!token) {
-    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  if (
+    [
+      "active",
+      "approved",
+      "valide",
+      "validé",
+      "paid",
+      "completed",
+      "confirmed",
+    ].includes(
+      normalizedStatus,
+    )
+  ) {
+    return "bg-emerald-100 text-emerald-700";
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  if (
+    [
+      "pending",
+      "en_attente",
+      "processing",
+      "unpaid",
+    ].includes(
+      normalizedStatus,
+    )
+  ) {
+    return "bg-amber-100 text-amber-700";
+  }
 
-  if (response.status === 401) {
+  if (
+    [
+      "rejected",
+      "refuse",
+      "refusé",
+      "cancelled",
+      "canceled",
+      "inactive",
+      "suspended",
+    ].includes(
+      normalizedStatus,
+    )
+  ) {
+    return "bg-red-100 text-red-700";
+  }
+
+  return "bg-slate-100 text-slate-600";
+}
+
+/* =========================================================
+   DOCUMENTS PROFESSIONNELS
+========================================================= */
+
+function normalizeProfileDocument(
+  document: ProfileDocument,
+  index: number,
+): ExistingDocument {
+  return {
+    id:
+      document.id ??
+      `${
+        document.original_name ||
+        document.file_name ||
+        document.name ||
+        "document"
+      }-${index}`,
+
+    name:
+      document.original_name ||
+      document.file_name ||
+      document.name ||
+      `Document ${index + 1}`,
+
+    url: getAssetUrl(
+      document.url ||
+        document.path ||
+        document.file_path,
+    ),
+
+    size:
+      document.size ?? null,
+
+    mime_type:
+      document.mime_type ||
+      document.type ||
+      null,
+
+    status:
+      normalizeCoachDocumentStatus(
+        document.status,
+      ),
+  };
+}
+
+function normalizeProfileDocuments(
+  documents?:
+    | ProfileDocument[]
+    | null,
+): ExistingDocument[] {
+  if (
+    !Array.isArray(documents)
+  ) {
+    return [];
+  }
+
+  return documents.map(
+    normalizeProfileDocument,
+  );
+}
+
+function getDocumentsFromProfile(
+  user: ProfileUser | null,
+): ExistingDocument[] {
+  const documents =
+    user?.coach_documents ||
+    user?.professional_documents ||
+    user?.documents ||
+    [];
+
+  return normalizeProfileDocuments(
+    documents,
+  );
+}
+
+/* =========================================================
+   VIDÉO
+========================================================= */
+
+function getVideoDuration(
+  file: File,
+): Promise<number> {
+  return new Promise(
+    (resolve, reject) => {
+      const video =
+        document.createElement(
+          "video",
+        );
+
+      const objectUrl =
+        URL.createObjectURL(
+          file,
+        );
+
+      const cleanup =
+        (): void => {
+          URL.revokeObjectURL(
+            objectUrl,
+          );
+
+          video.removeAttribute(
+            "src",
+          );
+
+          video.load();
+        };
+
+      video.preload =
+        "metadata";
+
+      video.onloadedmetadata =
+        () => {
+          const duration =
+            video.duration || 0;
+
+          cleanup();
+
+          resolve(duration);
+        };
+
+      video.onerror = () => {
+        cleanup();
+
+        reject(
+          new Error(
+            "Impossible de lire la durée de la vidéo.",
+          ),
+        );
+      };
+
+      video.src =
+        objectUrl;
+    },
+  );
+}
+
+/* =========================================================
+   API
+========================================================= */
+
+async function apiRequest<T>(
+  endpoint: string,
+  options:
+    RequestInit = {},
+): Promise<T> {
+  const token =
+    getToken();
+
+  if (!token) {
+    throw new Error(
+      "Session expirée. Veuillez vous reconnecter.",
+    );
+  }
+
+  const headers =
+    new Headers(
+      options.headers,
+    );
+
+  headers.set(
+    "Accept",
+    "application/json",
+  );
+
+  headers.set(
+    "Authorization",
+    `Bearer ${token}`,
+  );
+
+  const response =
+    await fetch(
+      getApiUrl(endpoint),
+      {
+        ...options,
+        headers,
+        cache: "no-store",
+      },
+    );
+
+  const result =
+    (await response
+      .json()
+      .catch(
+        () => null,
+      )) as
+      | (T &
+          ApiErrorPayload)
+      | null;
+
+  if (
+    response.status === 401
+  ) {
     clearAuth();
-    throw new Error("Session expirée. Veuillez vous reconnecter.");
+
+    throw new Error(
+      "Session expirée. Veuillez vous reconnecter.",
+    );
   }
 
   if (!response.ok) {
-    return null;
+    throw new Error(
+      getErrorMessage(
+        result,
+        "La requête n’a pas pu être exécutée.",
+      ),
+    );
   }
 
-  return response.json();
+  return result as T;
 }
 
-async function apiPostForm<T>(endpoint: string, formData: FormData): Promise<T> {
-  const token = getToken();
-
-  if (!token) {
-    throw new Error("Session expirée. Veuillez vous reconnecter.");
-  }
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
+async function apiGet<T>(
+  endpoint: string,
+): Promise<T> {
+  return apiRequest<T>(
+    endpoint,
+    {
+      method: "GET",
     },
-    body: formData,
-  });
-
-  const result = (await response.json().catch(() => null)) as T & {
-    message?: string;
-    errors?: Record<string, string[]>;
-  };
-
-  if (response.status === 401) {
-    clearAuth();
-    throw new Error("Session expirée. Veuillez vous reconnecter.");
-  }
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(result as ProfileUpdateResponse));
-  }
-
-  return result;
+  );
 }
 
-async function apiPostJson<T>(endpoint: string): Promise<T> {
-  const token = getToken();
-
-  if (!token) {
-    throw new Error("Session expirée. Veuillez vous reconnecter.");
-  }
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
+async function apiPostForm<T>(
+  endpoint: string,
+  formData: FormData,
+): Promise<T> {
+  return apiRequest<T>(
+    endpoint,
+    {
+      method: "POST",
+      body: formData,
     },
-  });
-
-  const result = (await response.json().catch(() => null)) as T & {
-    message?: string;
-  };
-
-  if (response.status === 401) {
-    clearAuth();
-    throw new Error("Session expirée. Veuillez vous reconnecter.");
-  }
-
-  if (!response.ok) {
-    throw new Error(result?.message || "Une erreur est survenue.");
-  }
-
-  return result;
+  );
 }
+
+async function apiPost<T>(
+  endpoint: string,
+): Promise<T> {
+  return apiRequest<T>(
+    endpoint,
+    {
+      method: "POST",
+    },
+  );
+}
+
+async function apiDelete<T>(
+  endpoint: string,
+): Promise<T> {
+  return apiRequest<T>(
+    endpoint,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
 
 export default function ProfilePage() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const [user, setUser] = useState<ProfileUser | null>(null);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [bio, setBio] = useState("");
-  const [city, setCity] = useState("");
-  const [location, setLocation] = useState("");
-  const [coachTitle, setCoachTitle] = useState("");
-  const [coachShortDescription, setCoachShortDescription] = useState("");
-  const [coachSpeciality, setCoachSpeciality] = useState("");
-  const [coachExperienceYears, setCoachExperienceYears] = useState("");
-  const [coachCertifications, setCoachCertifications] = useState("");
-  const [coachLanguages, setCoachLanguages] = useState("");
-
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [presentationVideoFile, setPresentationVideoFile] = useState<File | null>(null);
-
-  const [photoPreview, setPhotoPreview] = useState("");
-  const [coverPreview, setCoverPreview] = useState("");
-  const [presentationVideoPreview, setPresentationVideoPreview] = useState("");
-  const [presentationVideoDuration, setPresentationVideoDuration] = useState<number | null>(null);
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [stripeLoading, setStripeLoading] = useState(false);
-  const [stripeChecking, setStripeChecking] = useState(false);
-
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const mainRole = useMemo(() => getMainRole(user), [user]);
-  const isIntervenantAccount = useMemo(() => hasRole(user, "intervenant"), [user]);
-  const stripeStatus = useMemo(() => {
-    if (!isIntervenantAccount) return "hidden";
-    if (user?.stripe_onboarding_completed) return "active";
-    if (user?.stripe_account_id) return "pending";
-    return "missing";
-  }, [isIntervenantAccount, user?.stripe_account_id, user?.stripe_onboarding_completed]);
-
-  const paidReservations = useMemo(() => {
-    return reservations.filter((item) =>
-      item.payment_status === "paid" || item.is_paid === true || item.is_paid === 1
+  const photoObjectUrlRef =
+    useRef<string | null>(
+      null,
     );
-  }, [reservations]);
 
-  const totalPaid = useMemo(() => {
-    if (payments.length) {
-      return payments.reduce((total, item) => {
-        const rawAmount = item.amount ?? item.total ?? item.reservation?.total_client_amount ?? item.reservation?.price ?? 0;
-        const amount = Number(rawAmount);
-        return total + (Number.isNaN(amount) ? 0 : amount);
-      }, 0);
-    }
+  const coverObjectUrlRef =
+    useRef<string | null>(
+      null,
+    );
 
-    return paidReservations.reduce((total, item) => {
-      const rawAmount = item.total_client_amount ?? item.total ?? item.amount ?? item.price ?? item.annonce?.price ?? 0;
-      const amount = Number(rawAmount);
-      return total + (Number.isNaN(amount) ? 0 : amount);
-    }, 0);
-  }, [payments, paidReservations]);
+  const videoObjectUrlRef =
+    useRef<string | null>(
+      null,
+    );
 
-  const paymentCount = payments.length || paidReservations.length;
+  const [user, setUser] =
+    useState<
+      ProfileUser | null
+    >(null);
+
+  const [
+    reservations,
+    setReservations,
+  ] = useState<
+    Reservation[]
+  >([]);
+
+  const [
+    payments,
+    setPayments,
+  ] = useState<
+    Payment[]
+  >([]);
+
+  const [
+    existingDocuments,
+    setExistingDocuments,
+  ] = useState<
+    ExistingDocument[]
+  >([]);
+
+  const [
+    newDocuments,
+    setNewDocuments,
+  ] = useState<File[]>([]);
+
+  const [
+    documentError,
+    setDocumentError,
+  ] = useState("");
+
+  const [name, setName] =
+    useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [phone, setPhone] =
+    useState("");
+
+  const [
+    address,
+    setAddress,
+  ] = useState("");
+
+  const [bio, setBio] =
+    useState("");
+
+  const [city, setCity] =
+    useState("");
+
+  const [
+    location,
+    setLocation,
+  ] = useState("");
+
+  const [
+    companyName,
+    setCompanyName,
+  ] = useState("");
+
+  const [siret, setSiret] =
+    useState("");
+
+  const [
+    coachTitle,
+    setCoachTitle,
+  ] = useState("");
+
+  const [
+    coachShortDescription,
+    setCoachShortDescription,
+  ] = useState("");
+
+  const [
+    coachSpeciality,
+    setCoachSpeciality,
+  ] = useState("");
+
+  const [
+    coachExperienceYears,
+    setCoachExperienceYears,
+  ] = useState("");
+
+  const [
+    coachCertifications,
+    setCoachCertifications,
+  ] = useState("");
+
+  const [
+    coachLanguages,
+    setCoachLanguages,
+  ] = useState("");
+
+  const [
+    photoFile,
+    setPhotoFile,
+  ] = useState<
+    File | null
+  >(null);
+
+  const [
+    coverFile,
+    setCoverFile,
+  ] = useState<
+    File | null
+  >(null);
+
+  const [
+    presentationVideoFile,
+    setPresentationVideoFile,
+  ] = useState<
+    File | null
+  >(null);
+
+  const [
+    photoPreview,
+    setPhotoPreview,
+  ] = useState("");
+
+  const [
+    coverPreview,
+    setCoverPreview,
+  ] = useState("");
+
+  const [
+    presentationVideoPreview,
+    setPresentationVideoPreview,
+  ] = useState("");
+
+  const [
+    presentationVideoDuration,
+    setPresentationVideoDuration,
+  ] = useState<
+    number | null
+  >(null);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+  const [
+    stripeLoading,
+    setStripeLoading,
+  ] = useState(false);
+
+  const [
+    stripeChecking,
+    setStripeChecking,
+  ] = useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
+
+  /* =======================================================
+     DONNÉES CALCULÉES
+  ======================================================= */
+
+  const mainRole =
+    useMemo(
+      () =>
+        getMainRole(user),
+      [user],
+    );
+
+  const isIntervenantAccount =
+    useMemo(
+      () =>
+        hasRole(
+          user,
+          "intervenant",
+        ),
+      [user],
+    );
+
+  const stripeStatus =
+    useMemo(() => {
+      if (
+        !isIntervenantAccount
+      ) {
+        return "hidden";
+      }
+
+      if (
+        user?.stripe_onboarding_completed
+      ) {
+        return "active";
+      }
+
+      if (
+        user?.stripe_account_id
+      ) {
+        return "pending";
+      }
+
+      return "missing";
+    }, [
+      isIntervenantAccount,
+      user?.stripe_account_id,
+      user?.stripe_onboarding_completed,
+    ]);
+
+  const paidReservations =
+    useMemo(
+      () =>
+        reservations.filter(
+          (
+            reservation,
+          ) =>
+            reservation.payment_status ===
+              "paid" ||
+            reservation.is_paid ===
+              true ||
+            reservation.is_paid ===
+              1,
+        ),
+      [reservations],
+    );
+
+  const totalPaid =
+    useMemo(() => {
+      if (
+        payments.length > 0
+      ) {
+        return payments.reduce(
+          (
+            total,
+            payment,
+          ) => {
+            const rawAmount =
+              payment.amount ??
+              payment.total ??
+              payment
+                .reservation
+                ?.total_client_amount ??
+              payment
+                .reservation
+                ?.price ??
+              0;
+
+            const amount =
+              Number(
+                rawAmount,
+              );
+
+            return (
+              total +
+              (Number.isNaN(
+                amount,
+              )
+                ? 0
+                : amount)
+            );
+          },
+          0,
+        );
+      }
+
+      return paidReservations.reduce(
+        (
+          total,
+          reservation,
+        ) => {
+          const rawAmount =
+            reservation.total_client_amount ??
+            reservation.total ??
+            reservation.amount ??
+            reservation.price ??
+            reservation.annonce
+              ?.price ??
+            0;
+
+          const amount =
+            Number(
+              rawAmount,
+            );
+
+          return (
+            total +
+            (Number.isNaN(
+              amount,
+            )
+              ? 0
+              : amount)
+          );
+        },
+        0,
+      );
+    }, [
+      payments,
+      paidReservations,
+    ]);
+
+  const paymentCount =
+    payments.length ||
+    paidReservations.length;
+
+  /* =======================================================
+     SYNCHRONISATION
+  ======================================================= */
+
+  const syncUser =
+    useCallback(
+      (
+        updatedUser:
+          ProfileUser,
+      ): void => {
+        setUser(
+          updatedUser,
+        );
+
+        updateCurrentUser(
+          updatedUser,
+        );
+      },
+      [],
+    );
+
+  const loadOptionalArray =
+    useCallback(
+      async <T,>(
+        endpoints: string[],
+      ): Promise<T[]> => {
+        for (
+          const endpoint
+          of endpoints
+        ) {
+          try {
+            const payload =
+              await apiGet<unknown>(
+                endpoint,
+              );
+
+            const data =
+              normalizeArray<T>(
+                payload,
+              );
+
+            if (
+              data.length > 0
+            ) {
+              return data;
+            }
+          } catch {
+            // Essayer l’endpoint suivant.
+          }
+        }
+
+        return [];
+      },
+      [],
+    );
+
+  const loadCoachCredentials =
+    useCallback(
+      async (
+        fallbackUser?:
+          | ProfileUser
+          | null,
+      ): Promise<void> => {
+        try {
+          const result =
+            await apiGet<CoachCredentialsResponse>(
+              "coach/credentials",
+            );
+
+          const credentials =
+            Array.isArray(
+              result.credentials,
+            )
+              ? result.credentials
+              : [];
+
+          setExistingDocuments(
+            normalizeProfileDocuments(
+              credentials,
+            ),
+          );
+        } catch {
+          setExistingDocuments(
+            getDocumentsFromProfile(
+              fallbackUser ||
+                null,
+            ),
+          );
+        }
+      },
+      [],
+    );
+
+  const loadProfile =
+    useCallback(
+      async (): Promise<void> => {
+        try {
+          setLoading(true);
+          setError("");
+
+          const profilePayload =
+            await apiGet<ProfileResponse>(
+              "profile",
+            );
+
+          const profileUser =
+            profilePayload?.user ||
+            profilePayload?.data ||
+            null;
+
+          const currentUser =
+            profileUser ||
+            (getCurrentUser() as
+              | ProfileUser
+              | null);
+
+          if (!currentUser) {
+            throw new Error(
+              "Impossible de récupérer les informations du profil.",
+            );
+          }
+
+          syncUser(
+            currentUser,
+          );
+
+          const reservationEndpoint =
+            hasRole(
+              currentUser,
+              "intervenant",
+            )
+              ? "reservation/intervenant"
+              : "reservation/client";
+
+          const [
+            loadedReservations,
+            loadedPayments,
+          ] = await Promise.all([
+            loadOptionalArray<Reservation>(
+              [
+                reservationEndpoint,
+              ],
+            ),
+
+            loadOptionalArray<Payment>(
+              [
+                "my-payments",
+              ],
+            ),
+          ]);
+
+          if (
+            hasRole(
+              currentUser,
+              "intervenant",
+            )
+          ) {
+            await loadCoachCredentials(
+              currentUser,
+            );
+          } else {
+            setExistingDocuments(
+              getDocumentsFromProfile(
+                currentUser,
+              ),
+            );
+          }
+
+          setReservations(
+            loadedReservations,
+          );
+
+          setPayments(
+            loadedPayments,
+          );
+        } catch (loadError) {
+          const message =
+            loadError instanceof
+            Error
+              ? loadError.message
+              : "Impossible de charger le profil.";
+
+          setError(message);
+
+          if (
+            message.includes(
+              "Session expirée",
+            )
+          ) {
+            router.replace(
+              "/auth/login",
+            );
+          }
+        } finally {
+          setLoading(false);
+        }
+      },
+      [
+        loadCoachCredentials,
+        loadOptionalArray,
+        router,
+        syncUser,
+      ],
+    );
+
+  const refreshStripeStatus =
+    useCallback(
+      async (): Promise<void> => {
+        try {
+          setStripeChecking(
+            true,
+          );
+
+          setError("");
+          setSuccess("");
+
+          const result =
+            await apiGet<StripeConnectStatusResponse>(
+              "stripe/connect/status",
+            );
+
+          setUser(
+            (
+              currentUser,
+            ) => {
+              if (
+                !currentUser
+              ) {
+                return currentUser;
+              }
+
+              const updatedUser:
+                ProfileUser = {
+                ...currentUser,
+
+                stripe_account_id:
+                  result.stripe_account_id ??
+                  currentUser.stripe_account_id ??
+                  null,
+
+                stripe_onboarding_completed:
+                  Boolean(
+                    result.onboarding_completed,
+                  ),
+              };
+
+              updateCurrentUser(
+                updatedUser,
+              );
+
+              return updatedUser;
+            },
+          );
+
+          if (
+            result.onboarding_completed
+          ) {
+            setSuccess(
+              "Paiements Stripe activés. Votre compte peut recevoir des reversements.",
+            );
+          } else {
+            setError(
+              "Votre compte Stripe existe, mais l’activation n’est pas encore terminée.",
+            );
+          }
+        } catch (stripeError) {
+          setError(
+            stripeError instanceof
+            Error
+              ? stripeError.message
+              : "Impossible de vérifier le statut Stripe.",
+          );
+        } finally {
+          setStripeChecking(
+            false,
+          );
+        }
+      },
+      [],
+    );
+
+  /* =======================================================
+     CHARGEMENT INITIAL
+  ======================================================= */
 
   useEffect(() => {
-    const localUser = getCurrentUser();
+    const token =
+      getToken();
 
-    if (!getToken()) {
-      router.replace("/auth/login");
+    const localUser =
+      getCurrentUser() as
+        | ProfileUser
+        | null;
+
+    if (!token) {
+      router.replace(
+        "/auth/login",
+      );
+
       return;
     }
 
     if (localUser) {
-      setUser(localUser as ProfileUser);
+      setUser(localUser);
     }
 
-    loadProfile();
-  }, [router]);
+    void loadProfile();
+  }, [
+    loadProfile,
+    router,
+  ]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const stripeReturn = params.get("stripe");
+    const searchParams =
+      new URLSearchParams(
+        window.location.search,
+      );
 
-    if (stripeReturn === "success") {
-      setSuccess("Retour Stripe réussi. Vérification de votre compte de paiement en cours...");
-      refreshStripeStatus();
+    const stripeReturn =
+      searchParams.get(
+        "stripe",
+      );
+
+    if (
+      stripeReturn ===
+      "success"
+    ) {
+      setSuccess(
+        "Retour Stripe réussi. Vérification du compte en cours…",
+      );
+
+      void refreshStripeStatus();
     }
 
-    if (stripeReturn === "refresh") {
-      setError("Le lien Stripe a expiré. Relancez l’activation des paiements.");
+    if (
+      stripeReturn ===
+      "refresh"
+    ) {
+      setError(
+        "Le lien Stripe a expiré. Relancez l’activation des paiements.",
+      );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    refreshStripeStatus,
+  ]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
-    setName(user.name || "");
-    setEmail(user.email || "");
-    setPhone(user.phone || "");
-    setAddress(user.address || "");
-    setBio(user.bio || "");
-    setCity(user.city || "");
-    setLocation(user.location || "");
-    setCoachTitle(user.coach_title || "");
-    setCoachShortDescription(user.coach_short_description || "");
-    setCoachSpeciality(user.coach_speciality || "");
-    setCoachExperienceYears(toInputValue(user.coach_experience_years));
-    setCoachCertifications(toInputValue(user.coach_certifications));
-    setCoachLanguages(toInputValue(user.coach_languages));
-    setPhotoPreview(getUserPhoto(user));
-    setCoverPreview(getUserCover(user));
-    setPresentationVideoPreview(getUserVideo(user));
+    setName(
+      user.name || "",
+    );
+
+    setEmail(
+      user.email || "",
+    );
+
+    setPhone(
+      user.phone || "",
+    );
+
+    setAddress(
+      user.address || "",
+    );
+
+    setBio(
+      user.bio || "",
+    );
+
+    setCity(
+      user.city || "",
+    );
+
+    setLocation(
+      user.location || "",
+    );
+
+    setCompanyName(
+      user.company_name || "",
+    );
+
+    setSiret(
+      user.siret || "",
+    );
+
+    setCoachTitle(
+      user.coach_title || "",
+    );
+
+    setCoachShortDescription(
+      user.coach_short_description ||
+        "",
+    );
+
+    setCoachSpeciality(
+      user.coach_speciality ||
+        "",
+    );
+
+    setCoachExperienceYears(
+      toInputValue(
+        user.coach_experience_years,
+      ),
+    );
+
+    setCoachCertifications(
+      toInputValue(
+        user.coach_certifications,
+      ),
+    );
+
+    setCoachLanguages(
+      toInputValue(
+        user.coach_languages,
+      ),
+    );
+
+    setPhotoPreview(
+      getUserPhoto(user),
+    );
+
+    setCoverPreview(
+      getUserCover(user),
+    );
+
+    setPresentationVideoPreview(
+      getUserVideo(user),
+    );
+
+    const duration =
+      Number(
+        user.presentation_video_duration_seconds,
+      );
+
     setPresentationVideoDuration(
-      user.presentation_video_duration_seconds
-        ? Number(user.presentation_video_duration_seconds)
-        : null
+      Number.isFinite(
+        duration,
+      ) &&
+        duration > 0
+        ? duration
+        : null,
     );
   }, [user]);
 
-  async function loadProfile() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const profilePayload = await apiGet<ProfileResponse>("/profile");
-      const profileUser = profilePayload?.user || profilePayload?.data || null;
-
-      if (profileUser) {
-        setUser(profileUser);
-        saveAuth(getToken() || "", profileUser);
+  useEffect(() => {
+    return () => {
+      if (
+        photoObjectUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          photoObjectUrlRef.current,
+        );
       }
 
-      const currentUser = profileUser || (getCurrentUser() as ProfileUser | null);
-
-      if (hasRole(currentUser, "intervenant")) {
-        const reservationPayload = await apiGet<any>("/reservation/intervenant");
-        setReservations(normalizeArray<Reservation>(reservationPayload));
-      } else {
-        const reservationPayload = await apiGet<any>("/reservation/client");
-        setReservations(normalizeArray<Reservation>(reservationPayload));
+      if (
+        coverObjectUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          coverObjectUrlRef.current,
+        );
       }
 
-      const paymentsPayload =
-        (await apiGet<any>("/my-payments")) ||
-        (await apiGet<any>("/payments/me")) ||
-        (await apiGet<any>("/payments")) ||
-        (await apiGet<any>("/payements"));
-
-      setPayments(normalizeArray<Payment>(paymentsPayload));
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Impossible de charger le profil.";
-
-      setError(message);
-
-      if (message.includes("Session expirée")) {
-        router.replace("/auth/login");
+      if (
+        videoObjectUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          videoObjectUrlRef.current,
+        );
       }
-    } finally {
-      setLoading(false);
+    };
+  }, []);
+
+  /* =======================================================
+     FICHIERS
+  ======================================================= */
+
+  function validateImage(
+    file: File,
+  ): string | null {
+    if (
+      !file.type.startsWith(
+        "image/",
+      )
+    ) {
+      return "Le fichier sélectionné doit être une image.";
     }
+
+    if (
+      file.size >
+      MAX_IMAGE_SIZE
+    ) {
+      return `L’image ne doit pas dépasser ${formatBytes(
+        MAX_IMAGE_SIZE,
+      )}.`;
+    }
+
+    return null;
   }
 
-  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  function handlePhotoChange(
+    event:
+      ChangeEvent<HTMLInputElement>,
+  ): void {
+    const file =
+      event.target
+        .files?.[0];
 
-    if (!file) return;
+    event.target.value =
+      "";
 
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
-  }
-
-  function handleCoverChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    setCoverFile(file);
-    setCoverPreview(URL.createObjectURL(file));
-  }
-
-  async function handlePresentationVideoChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
 
     setError("");
     setSuccess("");
-    setPresentationVideoFile(null);
-    setPresentationVideoPreview(getUserVideo(user));
-    setPresentationVideoDuration(
-      user?.presentation_video_duration_seconds
-        ? Number(user.presentation_video_duration_seconds)
-        : null
+
+    const validationError =
+      validateImage(file);
+
+    if (validationError) {
+      setError(
+        validationError,
+      );
+
+      return;
+    }
+
+    if (
+      photoObjectUrlRef.current
+    ) {
+      URL.revokeObjectURL(
+        photoObjectUrlRef.current,
+      );
+    }
+
+    const objectUrl =
+      URL.createObjectURL(
+        file,
+      );
+
+    photoObjectUrlRef.current =
+      objectUrl;
+
+    setPhotoFile(file);
+    setPhotoPreview(
+      objectUrl,
     );
+  }
 
-    if (!file) return;
+  function handleCoverChange(
+    event:
+      ChangeEvent<HTMLInputElement>,
+  ): void {
+    const file =
+      event.target
+        .files?.[0];
 
-    if (!file.type.startsWith("video/")) {
-      setError("Le fichier choisi doit être une vidéo.");
-      event.target.value = "";
+    event.target.value =
+      "";
+
+    if (!file) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    const validationError =
+      validateImage(file);
+
+    if (validationError) {
+      setError(
+        validationError,
+      );
+
+      return;
+    }
+
+    if (
+      coverObjectUrlRef.current
+    ) {
+      URL.revokeObjectURL(
+        coverObjectUrlRef.current,
+      );
+    }
+
+    const objectUrl =
+      URL.createObjectURL(
+        file,
+      );
+
+    coverObjectUrlRef.current =
+      objectUrl;
+
+    setCoverFile(file);
+
+    setCoverPreview(
+      objectUrl,
+    );
+  }
+
+  async function handlePresentationVideoChange(
+    event:
+      ChangeEvent<HTMLInputElement>,
+  ): Promise<void> {
+    const file =
+      event.target
+        .files?.[0];
+
+    event.target.value =
+      "";
+
+    setError("");
+    setSuccess("");
+
+    if (!file) {
+      return;
+    }
+
+    if (
+      !file.type.startsWith(
+        "video/",
+      )
+    ) {
+      setError(
+        "Le fichier choisi doit être une vidéo.",
+      );
+
+      return;
+    }
+
+    if (
+      file.size >
+      MAX_VIDEO_SIZE
+    ) {
+      setError(
+        `La vidéo ne doit pas dépasser ${formatBytes(
+          MAX_VIDEO_SIZE,
+        )}.`,
+      );
+
       return;
     }
 
     try {
-      const duration = await getVideoDuration(file);
-      const roundedDuration = Math.round(duration);
+      const duration =
+        await getVideoDuration(
+          file,
+        );
 
-      if (duration > 60.5) {
-        setError("La vidéo de présentation doit durer 60 secondes maximum.");
-        event.target.value = "";
+      if (
+        duration >
+        MAX_VIDEO_DURATION_SECONDS +
+          0.5
+      ) {
+        setError(
+          `La vidéo de présentation doit durer ${MAX_VIDEO_DURATION_SECONDS} secondes maximum.`,
+        );
+
         return;
       }
 
-      setPresentationVideoFile(file);
-      setPresentationVideoPreview(URL.createObjectURL(file));
-      setPresentationVideoDuration(roundedDuration);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Impossible de vérifier la durée de la vidéo."
+      if (
+        videoObjectUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          videoObjectUrlRef.current,
+        );
+      }
+
+      const objectUrl =
+        URL.createObjectURL(
+          file,
+        );
+
+      videoObjectUrlRef.current =
+        objectUrl;
+
+      setPresentationVideoFile(
+        file,
       );
-      event.target.value = "";
+
+      setPresentationVideoPreview(
+        objectUrl,
+      );
+
+      setPresentationVideoDuration(
+        Math.round(
+          duration,
+        ),
+      );
+    } catch (videoError) {
+      setError(
+        videoError instanceof
+        Error
+          ? videoError.message
+          : "Impossible de vérifier la vidéo.",
+      );
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  /* =======================================================
+     DOCUMENTS DU COACH
+  ======================================================= */
 
-    if (saving) return;
-
+  async function handleRemoveExistingDocument(
+    document:
+      ExistingDocument,
+  ): Promise<void> {
     try {
-      setSaving(true);
       setError("");
       setSuccess("");
 
-      const cleanName = name.trim();
-      const cleanEmail = email.trim();
+      await apiDelete<DeleteDocumentResponse>(
+        `coach/credentials/${document.id}`,
+      );
 
-      if (!cleanName) {
-        setError("Le nom complet est obligatoire.");
-        return;
+      setExistingDocuments(
+        (
+          currentDocuments,
+        ) =>
+          currentDocuments.filter(
+            (item) =>
+              String(
+                item.id,
+              ) !==
+              String(
+                document.id,
+              ),
+          ),
+      );
+
+      setSuccess(
+        "Le document professionnel a été supprimé.",
+      );
+    } catch (deleteError) {
+      const message =
+        deleteError instanceof
+        Error
+          ? deleteError.message
+          : "Le document n’a pas pu être supprimé.";
+
+      setError(message);
+
+      throw deleteError;
+    }
+  }
+
+  async function uploadCoachCredentials(
+    files: File[],
+  ): Promise<void> {
+    for (
+      const file
+      of files
+    ) {
+      const formData =
+        new FormData();
+
+      formData.append(
+        "file",
+        file,
+      );
+
+      formData.append(
+        "document_type",
+        inferProfessionalDocumentType(
+          file,
+        ),
+      );
+
+      await apiPostForm<CredentialUploadResponse>(
+        "coach/credentials",
+        formData,
+      );
+    }
+  }
+
+  /* =======================================================
+     ENREGISTREMENT DU PROFIL
+  ======================================================= */
+
+  async function handleSubmit(
+    event:
+      FormEvent<HTMLFormElement>,
+  ): Promise<void> {
+    event.preventDefault();
+
+    if (saving) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setDocumentError("");
+
+    const cleanName =
+      name.trim();
+
+    const cleanEmail =
+      email
+        .trim()
+        .toLowerCase();
+
+    const cleanSiret =
+      siret.replace(
+        /\D/g,
+        "",
+      );
+
+    if (!cleanName) {
+      setError(
+        "Le nom complet est obligatoire.",
+      );
+
+      return;
+    }
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        cleanEmail,
+      )
+    ) {
+      setError(
+        "Indiquez une adresse email valide.",
+      );
+
+      return;
+    }
+
+    if (
+      isIntervenantAccount &&
+      cleanSiret &&
+      cleanSiret.length !==
+        14
+    ) {
+      setError(
+        "Le numéro SIRET doit contenir exactement 14 chiffres.",
+      );
+
+      return;
+    }
+
+    if (
+      coachExperienceYears &&
+      Number(
+        coachExperienceYears,
+      ) < 0
+    ) {
+      setError(
+        "Le nombre d’années d’expérience ne peut pas être négatif.",
+      );
+
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "name",
+        cleanName,
+      );
+
+      formData.append(
+        "email",
+        cleanEmail,
+      );
+
+      formData.append(
+        "phone",
+        phone.trim(),
+      );
+
+      formData.append(
+        "address",
+        address.trim(),
+      );
+
+      formData.append(
+        "bio",
+        bio.trim(),
+      );
+
+      formData.append(
+        "city",
+        city.trim(),
+      );
+
+      formData.append(
+        "location",
+        location.trim(),
+      );
+
+      if (
+        isIntervenantAccount
+      ) {
+        formData.append(
+          "company_name",
+          companyName.trim(),
+        );
+
+        formData.append(
+          "siret",
+          cleanSiret,
+        );
+
+        formData.append(
+          "coach_title",
+          coachTitle.trim(),
+        );
+
+        formData.append(
+          "coach_short_description",
+          coachShortDescription.trim(),
+        );
+
+        formData.append(
+          "coach_speciality",
+          coachSpeciality.trim(),
+        );
+
+        formData.append(
+          "coach_experience_years",
+          coachExperienceYears.trim(),
+        );
+
+        formData.append(
+          "coach_certifications",
+          coachCertifications.trim(),
+        );
+
+        formData.append(
+          "coach_languages",
+          coachLanguages.trim(),
+        );
       }
-
-      if (!cleanEmail) {
-        setError("L’adresse email est obligatoire.");
-        return;
-      }
-
-      const formData = new FormData();
-
-      formData.append("name", cleanName);
-      formData.append("email", cleanEmail);
-      formData.append("phone", phone.trim());
-      formData.append("address", address.trim());
-      formData.append("bio", bio.trim());
-      formData.append("city", city.trim());
-      formData.append("location", location.trim());
-      formData.append("coach_title", coachTitle.trim());
-      formData.append("coach_short_description", coachShortDescription.trim());
-      formData.append("coach_speciality", coachSpeciality.trim());
-      formData.append("coach_experience_years", coachExperienceYears.trim());
-      formData.append("coach_certifications", coachCertifications.trim());
-      formData.append("coach_languages", coachLanguages.trim());
 
       if (photoFile) {
-        formData.append("photo", photoFile);
+        formData.append(
+          "photo",
+          photoFile,
+        );
       }
 
       if (coverFile) {
-        formData.append("cover_photo", coverFile);
+        formData.append(
+          "cover_photo",
+          coverFile,
+        );
       }
 
-      if (presentationVideoFile) {
-        formData.append("presentation_video", presentationVideoFile);
+      if (
+        presentationVideoFile
+      ) {
+        formData.append(
+          "presentation_video",
+          presentationVideoFile,
+        );
 
-        if (presentationVideoDuration !== null) {
+        if (
+          presentationVideoDuration !==
+          null
+        ) {
           formData.append(
             "presentation_video_duration_seconds",
-            String(presentationVideoDuration)
+            String(
+              presentationVideoDuration,
+            ),
           );
         }
       }
 
-      const result = await apiPostForm<ProfileUpdateResponse>(
-        "/profile/update",
-        formData
-      );
+      const result =
+        await apiPostForm<ProfileUpdateResponse>(
+          "profile/update",
+          formData,
+        );
 
-      const updatedUser = result.user || result.data || null;
+      if (
+        isIntervenantAccount &&
+        newDocuments.length >
+          0
+      ) {
+        await uploadCoachCredentials(
+          newDocuments,
+        );
+      }
+
+      const updatedUser =
+        result.user ||
+        result.data;
 
       if (updatedUser) {
-        setUser(updatedUser);
-        saveAuth(getToken() || "", updatedUser);
+        syncUser(
+          updatedUser,
+        );
+      }
+
+      if (
+        isIntervenantAccount
+      ) {
+        await loadCoachCredentials(
+          updatedUser ||
+            user,
+        );
+      }
+
+      if (!updatedUser) {
+        await loadProfile();
       }
 
       setPhotoFile(null);
       setCoverFile(null);
-      setPresentationVideoFile(null);
-      setSuccess("Profil mis à jour avec succès.");
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Impossible de mettre à jour le profil.";
 
-      setError(message);
+      setPresentationVideoFile(
+        null,
+      );
+
+      setNewDocuments([]);
+
+      setSuccess(
+        result.message ||
+          "Profil mis à jour avec succès.",
+      );
+    } catch (saveError) {
+      setError(
+        saveError instanceof
+        Error
+          ? saveError.message
+          : "Impossible de mettre à jour le profil.",
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  async function refreshStripeStatus() {
-    try {
-      setStripeChecking(true);
-      setError("");
+  /* =======================================================
+     STRIPE
+  ======================================================= */
 
-      const result = await apiGet<StripeConnectStatusResponse>(
-        "/stripe/connect/status"
+  async function handleStripeConnect(): Promise<void> {
+    if (stripeLoading) {
+      return;
+    }
+
+    try {
+      setStripeLoading(
+        true,
       );
 
-      if (!result) {
-        throw new Error("Impossible de vérifier le statut Stripe.");
-      }
-
-      setUser((currentUser) => {
-        if (!currentUser) return currentUser;
-
-        const updatedUser = {
-          ...currentUser,
-          stripe_account_id:
-            result.stripe_account_id ?? currentUser.stripe_account_id ?? null,
-          stripe_onboarding_completed: Boolean(result.onboarding_completed),
-        };
-
-        saveAuth(getToken() || "", updatedUser);
-
-        return updatedUser;
-      });
-
-      if (result.onboarding_completed) {
-        setSuccess("Paiements Stripe activés. Vous pouvez recevoir vos reversements.");
-      } else {
-        setError(
-          "Votre compte Stripe est créé, mais l’activation n’est pas encore terminée. Complétez les informations demandées par Stripe."
-        );
-      }
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Impossible de vérifier le statut Stripe.";
-
-      setError(message);
-    } finally {
-      setStripeChecking(false);
-    }
-  }
-
-  async function handleStripeConnect() {
-    if (stripeLoading) return;
-
-    try {
-      setStripeLoading(true);
       setError("");
       setSuccess("");
 
-      const result = await apiPostJson<StripeConnectResponse>(
-        "/stripe/connect/onboarding"
-      );
+      const result =
+        await apiPost<StripeConnectResponse>(
+          "stripe/connect/onboarding",
+        );
 
       if (!result?.url) {
-        throw new Error("Lien Stripe Connect introuvable.");
+        throw new Error(
+          "Lien Stripe Connect introuvable.",
+        );
       }
 
-      window.location.href = result.url;
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Impossible de générer le lien Stripe Connect.";
+      window.location.assign(
+        result.url,
+      );
+    } catch (stripeError) {
+      setError(
+        stripeError instanceof
+        Error
+          ? stripeError.message
+          : "Impossible de générer le lien Stripe Connect.",
+      );
 
-      setError(message);
-      setStripeLoading(false);
+      setStripeLoading(
+        false,
+      );
     }
   }
 
-  function handleLogout() {
+  function handleLogout(): void {
     clearAuth();
-    router.replace("/auth/login");
+
+    router.replace(
+      "/auth/login",
+    );
+
+    router.refresh();
   }
+
+  /* =======================================================
+     CHARGEMENT
+  ======================================================= */
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-orange-50 px-4 py-32 text-slate-950">
+      <main className="min-h-screen bg-gradient-to-b from-orange-50 via-white to-orange-50 px-4 py-32 text-slate-950">
         <div className="mx-auto flex max-w-7xl items-center justify-center py-28">
-          <div className="flex items-center gap-3 rounded-3xl bg-white px-6 py-5 text-sm font-bold text-orange-700 shadow-sm">
-            <Loader2 className="animate-spin" size={20} />
-            Chargement du profil...
+          <div
+            role="status"
+            className="flex items-center gap-3 rounded-3xl border border-orange-100 bg-white px-6 py-5 text-sm font-black text-orange-700 shadow-xl shadow-orange-500/10"
+          >
+            <Loader2
+              aria-hidden="true"
+              className="animate-spin"
+              size={20}
+            />
+
+            Chargement du profil…
           </div>
         </div>
       </main>
     );
   }
 
+  /* =======================================================
+     AFFICHAGE
+  ======================================================= */
+
   return (
-    <main className="min-h-screen bg-orange-50 px-4 py-28 text-slate-950">
+    <main className="min-h-screen bg-gradient-to-b from-orange-50 via-white to-orange-50 px-4 py-24 text-slate-950 sm:py-28">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href="/"
-            className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-orange-700 shadow-sm transition hover:bg-orange-100"
+            className="inline-flex w-fit items-center gap-2 rounded-full border border-orange-100 bg-white px-4 py-2 text-sm font-black text-orange-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-orange-50"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft
+              aria-hidden="true"
+              size={17}
+            />
+
             Retour vers l’accueil
           </Link>
 
           <button
             type="button"
             onClick={handleLogout}
-            className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-red-600 shadow-sm transition hover:bg-red-50"
+            className="inline-flex w-fit items-center gap-2 rounded-full border border-red-100 bg-white px-4 py-2 text-sm font-black text-red-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-red-50"
           >
-            <LogOut size={17} />
+            <LogOut
+              aria-hidden="true"
+              size={17}
+            />
+
             Déconnexion
           </button>
         </div>
 
-        {error && (
-          <div className="mb-5 flex items-start gap-3 rounded-3xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
-            <X className="mt-0.5 shrink-0" size={18} />
-            {error}
-          </div>
-        )}
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {error && (
+            <div
+              role="alert"
+              className="mb-5 flex items-start gap-3 rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold leading-6 text-red-700 shadow-sm"
+            >
+              <X
+                aria-hidden="true"
+                className="mt-0.5 shrink-0"
+                size={18}
+              />
 
-        {success && (
-          <div className="mb-5 flex items-start gap-3 rounded-3xl border border-orange-200 bg-orange-100 px-5 py-4 text-sm font-bold text-orange-800">
-            <BadgeCheck className="mt-0.5 shrink-0" size={18} />
-            {success}
-          </div>
-        )}
+              <span>{error}</span>
+            </div>
+          )}
 
-        <section className="overflow-hidden rounded-[2.5rem] bg-white shadow-[0_24px_80px_rgba(249,115,22,0.15)]">
+          {success && (
+            <div
+              role="status"
+              className="mb-5 flex items-start gap-3 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-bold leading-6 text-emerald-700 shadow-sm"
+            >
+              <CheckCircle2
+                aria-hidden="true"
+                className="mt-0.5 shrink-0"
+                size={18}
+              />
+
+              <span>{success}</span>
+            </div>
+          )}
+        </div>
+
+        {/* En-tête du profil */}
+
+        <section className="overflow-hidden rounded-[2.5rem] border border-white bg-white shadow-[0_28px_90px_rgba(249,115,22,0.16)]">
           <div
-            className="relative h-56 bg-orange-200"
+            className="relative h-56 bg-orange-200 sm:h-64"
             style={
               coverPreview
                 ? {
-                    backgroundImage: `url(${coverPreview})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
+                    backgroundImage:
+                      `url("${coverPreview}")`,
+
+                    backgroundSize:
+                      "cover",
+
+                    backgroundPosition:
+                      "center",
                   }
                 : {
-                    background: FALLBACK_COVER,
+                    background:
+                      FALLBACK_COVER,
                   }
             }
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-orange-950/10 to-orange-500/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-orange-950/10" />
 
-            <label className="absolute right-5 top-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-black text-orange-700 shadow-sm backdrop-blur transition hover:bg-orange-50">
-              <Camera size={17} />
-              Couverture
+            <label className="absolute right-5 top-5 inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/50 bg-white/95 px-4 py-2 text-sm font-black text-orange-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:bg-white">
+              <Camera
+                aria-hidden="true"
+                size={17}
+              />
+
+              Modifier la couverture
+
               <input
                 type="file"
-                accept="image/*"
-                onChange={handleCoverChange}
-                className="hidden"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={
+                  handleCoverChange
+                }
+                disabled={saving}
+                className="sr-only"
               />
             </label>
           </div>
 
           <div className="px-5 pb-8 sm:px-8">
-            <div className="-mt-16 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="-mt-16 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="relative h-32 w-32 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-xl">
+                <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-2xl">
                   {photoPreview ? (
                     <img
-                      src={photoPreview}
-                      alt={user?.name || "Photo de profil"}
+                      src={
+                        photoPreview
+                      }
+                      alt={
+                        user?.name ||
+                        "Photo de profil"
+                      }
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-orange-100 text-orange-700">
-                      <UserRound size={42} />
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-orange-100 to-orange-200 text-orange-700">
+                      <UserRound
+                        aria-hidden="true"
+                        size={42}
+                      />
                     </div>
                   )}
 
-                  <label className="absolute bottom-2 right-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white text-orange-700 shadow-lg transition hover:bg-orange-50">
-                    <Camera size={18} />
+                  <label className="absolute bottom-2 right-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white text-orange-700 shadow-lg transition hover:scale-105 hover:bg-orange-50">
+                    <Camera
+                      aria-hidden="true"
+                      size={18}
+                    />
+
+                    <span className="sr-only">
+                      Modifier la photo de profil
+                    </span>
+
                     <input
                       type="file"
-                      accept="image/*"
-                      onChange={handlePhotoChange}
-                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={
+                        handlePhotoChange
+                      }
+                      disabled={
+                        saving
+                      }
+                      className="sr-only"
                     />
                   </label>
                 </div>
 
                 <div className="pb-1">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-orange-600 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
+                    <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
                       {mainRole}
                     </span>
 
                     {user?.account_status && (
-                      <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-orange-700">
-                        {getStatusLabel(user.account_status)}
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-black ${getStatusClasses(
+                          user.account_status,
+                        )}`}
+                      >
+                        {getStatusLabel(
+                          user.account_status,
+                        )}
                       </span>
                     )}
                   </div>
 
                   <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                    {user?.name || "Utilisateur Gotfit"}
+                    {user?.name ||
+                      "Utilisateur Gotfit"}
                   </h1>
 
                   <p className="mt-2 text-sm font-semibold text-slate-500">
-                    Membre depuis {formatDate(user?.created_at)}
+                    Membre depuis{" "}
+
+                    {formatDate(
+                      user?.created_at,
+                    )}
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/parcours-client"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800"
-                >
-                  <CalendarCheck size={18} />
-                  Parcours client
-                </Link>
+                {hasRole(
+                  user,
+                  "client",
+                ) && (
+                  <>
+                    <Link
+                      href="/parcours-client"
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800"
+                    >
+                      <CalendarCheck
+                        aria-hidden="true"
+                        size={18}
+                      />
 
-                {hasRole(user, "client") && (
-                  <Link
-                    href="/onboarding"
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-orange-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-orange-50"
-                  >
-                    <BadgeCheck size={18} />
-                    Onboarding
-                  </Link>
+                      Parcours client
+                    </Link>
+
+                    <Link
+                      href="/onboarding"
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-100 bg-white px-5 py-3 text-sm font-black text-orange-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-orange-50"
+                    >
+                      <BadgeCheck
+                        aria-hidden="true"
+                        size={18}
+                      />
+
+                      Bilan de forme
+                    </Link>
+                  </>
                 )}
 
                 <Link
-                  href={getDashboardUrl(user)}
+                  href={getDashboardUrl(
+                    user,
+                  )}
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700"
                 >
-                  <ShieldCheck size={18} />
+                  <ShieldCheck
+                    aria-hidden="true"
+                    size={18}
+                  />
+
                   Mon espace
                 </Link>
               </div>
@@ -917,50 +2512,111 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.85fr]">
+        <section className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
+          {/* Formulaire */}
+
           <form
-            onSubmit={handleSubmit}
-            className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7"
+            onSubmit={
+              handleSubmit
+            }
+            aria-busy={saving}
+            className="rounded-[2rem] border border-orange-100 bg-white p-5 shadow-xl shadow-orange-500/5 sm:p-7"
           >
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-black tracking-tight">
-                  Informations du profil
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-600">
+                  Mon profil
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black tracking-tight">
+                  Informations personnelles
                 </h2>
+
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Modifiez vos informations personnelles.
+                  Maintenez vos informations à
+                  jour pour améliorer votre
+                  expérience Gotfit.
                 </p>
               </div>
 
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-100 text-orange-700">
-                <Pencil size={19} />
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-700">
+                <Pencil
+                  aria-hidden="true"
+                  size={20}
+                />
               </span>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-5">
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
+                <label
+                  htmlFor="profile-name"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
                   Nom complet
                 </label>
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white"
-                  placeholder="Nom complet"
-                />
+
+                <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 transition focus-within:border-orange-500 focus-within:bg-white">
+                  <UserRound
+                    aria-hidden="true"
+                    size={18}
+                    className="shrink-0 text-orange-500"
+                  />
+
+                  <input
+                    id="profile-name"
+                    name="name"
+                    value={name}
+                    onChange={(
+                      event,
+                    ) =>
+                      setName(
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    disabled={saving}
+                    className="w-full bg-transparent text-sm font-semibold outline-none"
+                    placeholder="Nom complet"
+                  />
+                </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
-                    Email
+                  <label
+                    htmlFor="profile-email"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
+                    Adresse email
                   </label>
-                  <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
-                    <Mail size={18} className="text-orange-500" />
+
+                  <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 transition focus-within:border-orange-500 focus-within:bg-white">
+                    <Mail
+                      aria-hidden="true"
+                      size={18}
+                      className="shrink-0 text-orange-500"
+                    />
+
                     <input
+                      id="profile-email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
+                      onChange={(
+                        event,
+                      ) =>
+                        setEmail(
+                          event
+                            .target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        saving
+                      }
                       className="w-full bg-transparent text-sm font-semibold outline-none"
                       placeholder="email@exemple.com"
                     />
@@ -968,14 +2624,38 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                  <label
+                    htmlFor="profile-phone"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
                     Téléphone
                   </label>
-                  <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
-                    <Phone size={18} className="text-orange-500" />
+
+                  <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 transition focus-within:border-orange-500 focus-within:bg-white">
+                    <Phone
+                      aria-hidden="true"
+                      size={18}
+                      className="shrink-0 text-orange-500"
+                    />
+
                     <input
+                      id="profile-phone"
+                      name="phone"
+                      type="tel"
+                      autoComplete="tel"
                       value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
+                      onChange={(
+                        event,
+                      ) =>
+                        setPhone(
+                          event
+                            .target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        saving
+                      }
                       className="w-full bg-transparent text-sm font-semibold outline-none"
                       placeholder="+33 6 00 00 00 00"
                     />
@@ -984,111 +2664,326 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
+                <label
+                  htmlFor="profile-address"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
                   Adresse
                 </label>
-                <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
-                  <MapPin size={18} className="text-orange-500" />
+
+                <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 transition focus-within:border-orange-500 focus-within:bg-white">
+                  <MapPin
+                    aria-hidden="true"
+                    size={18}
+                    className="shrink-0 text-orange-500"
+                  />
+
                   <input
+                    id="profile-address"
+                    name="address"
+                    autoComplete="street-address"
                     value={address}
-                    onChange={(event) => setAddress(event.target.value)}
+                    onChange={(
+                      event,
+                    ) =>
+                      setAddress(
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    disabled={saving}
                     className="w-full bg-transparent text-sm font-semibold outline-none"
-                    placeholder="Adresse ou ville"
+                    placeholder="Adresse complète"
                   />
                 </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                  <label
+                    htmlFor="profile-city"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
                     Ville
                   </label>
+
                   <input
+                    id="profile-city"
+                    name="city"
+                    autoComplete="address-level2"
                     value={city}
-                    onChange={(event) => setCity(event.target.value)}
+                    onChange={(
+                      event,
+                    ) =>
+                      setCity(
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    disabled={saving}
                     className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white"
-                    placeholder="Paris, France..."
+                    placeholder="Paris"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                  <label
+                    htmlFor="profile-location"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
                     Localisation affichée
                   </label>
+
                   <input
-                    value={location}
-                    onChange={(event) => setLocation(event.target.value)}
+                    id="profile-location"
+                    name="location"
+                    value={
+                      location
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      setLocation(
+                        event
+                          .target
+                          .value,
+                      )
+                    }
+                    disabled={saving}
                     className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white"
-                    placeholder="En ligne, Paris, Île-de-France..."
+                    placeholder="Paris, Île-de-France, En ligne…"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Bio
+                <label
+                  htmlFor="profile-bio"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
+                  Présentation
                 </label>
+
                 <textarea
+                  id="profile-bio"
+                  name="bio"
                   value={bio}
-                  onChange={(event) => setBio(event.target.value)}
+                  onChange={(
+                    event,
+                  ) =>
+                    setBio(
+                      event
+                        .target
+                        .value,
+                    )
+                  }
                   rows={5}
-                  className="w-full resize-none rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 focus:bg-white"
-                  placeholder="Présentez-vous en quelques lignes..."
+                  disabled={saving}
+                  className="w-full resize-none rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold leading-6 outline-none transition focus:border-orange-500 focus:bg-white"
+                  placeholder="Présentez-vous en quelques lignes…"
                 />
               </div>
 
+              {/* Profil coach */}
+
               {isIntervenantAccount && (
-                <div className="rounded-[2rem] border border-orange-100 bg-orange-50 p-4 sm:p-5">
-                  <div className="mb-5 flex items-start justify-between gap-4">
+                <section className="rounded-[2rem] border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-amber-50 p-4 sm:p-6">
+                  <div className="mb-6 flex items-start justify-between gap-4">
                     <div>
-                      <h3 className="text-xl font-black tracking-tight text-slate-950">
-                        Profil coach / intervenant
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-600">
+                        Espace professionnel
+                      </p>
+
+                      <h3 className="mt-1 text-xl font-black tracking-tight text-slate-950">
+                        Profil coach
                       </h3>
+
                       <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-                        Champs envoyés à Laravel et affichés dynamiquement sur la
-                        liste et le détail des intervenants.
+                        Ces informations seront
+                        visibles par les coachés
+                        sur votre fiche publique.
                       </p>
                     </div>
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-orange-700">
-                      <BadgeCheck size={19} />
+
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-700 shadow-sm">
+                      <BadgeCheck
+                        aria-hidden="true"
+                        size={20}
+                      />
                     </span>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-sm font-bold text-slate-700">
-                        Titre coach
+                      <label
+                        htmlFor="company-name"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
+                        Nom de l’activité
                       </label>
+
+                      <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-white px-4 py-3">
+                        <Building2
+                          aria-hidden="true"
+                          size={18}
+                          className="shrink-0 text-orange-500"
+                        />
+
+                        <input
+                          id="company-name"
+                          name="company_name"
+                          value={
+                            companyName
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            setCompanyName(
+                              event
+                                .target
+                                .value,
+                            )
+                          }
+                          disabled={
+                            saving
+                          }
+                          className="w-full bg-transparent text-sm font-semibold outline-none"
+                          placeholder="Nom de l’entreprise ou activité"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="coach-siret"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
+                        Numéro SIRET
+                      </label>
+
                       <input
-                        value={coachTitle}
-                        onChange={(event) => setCoachTitle(event.target.value)}
+                        id="coach-siret"
+                        name="siret"
+                        value={siret}
+                        onChange={(
+                          event,
+                        ) =>
+                          setSiret(
+                            event
+                              .target
+                              .value
+                              .replace(
+                                /\D/g,
+                                "",
+                              )
+                              .slice(
+                                0,
+                                14,
+                              ),
+                          )
+                        }
+                        inputMode="numeric"
+                        maxLength={14}
+                        disabled={
+                          saving
+                        }
                         className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
-                        placeholder="Coach Pilates, Préparateur physique..."
+                        placeholder="12345678900012"
                       />
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-bold text-slate-700">
-                        Spécialité
+                      <label
+                        htmlFor="coach-title"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
+                        Titre professionnel
                       </label>
+
                       <input
-                        value={coachSpeciality}
-                        onChange={(event) => setCoachSpeciality(event.target.value)}
+                        id="coach-title"
+                        name="coach_title"
+                        value={
+                          coachTitle
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setCoachTitle(
+                            event
+                              .target
+                              .value,
+                          )
+                        }
+                        disabled={
+                          saving
+                        }
                         className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
-                        placeholder="Pilates, Yoga, Nutrition..."
+                        placeholder="Coach sportif, Professeur de yoga…"
                       />
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                      <label
+                        htmlFor="coach-speciality"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
+                        Spécialité principale
+                      </label>
+
+                      <input
+                        id="coach-speciality"
+                        name="coach_speciality"
+                        value={
+                          coachSpeciality
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setCoachSpeciality(
+                            event
+                              .target
+                              .value,
+                          )
+                        }
+                        disabled={
+                          saving
+                        }
+                        className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
+                        placeholder="Fitness, Pilates, Nutrition…"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="coach-experience"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
                         Années d’expérience
                       </label>
+
                       <input
+                        id="coach-experience"
+                        name="coach_experience_years"
                         type="number"
-                        min="0"
-                        value={coachExperienceYears}
-                        onChange={(event) =>
-                          setCoachExperienceYears(event.target.value)
+                        min={0}
+                        max={80}
+                        value={
+                          coachExperienceYears
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setCoachExperienceYears(
+                            event
+                              .target
+                              .value,
+                          )
+                        }
+                        disabled={
+                          saving
                         }
                         className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
                         placeholder="5"
@@ -1096,93 +2991,257 @@ export default function ProfilePage() {
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-bold text-slate-700">
-                        Langues
+                      <label
+                        htmlFor="coach-languages"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
+                        Langues parlées
                       </label>
+
                       <input
-                        value={coachLanguages}
-                        onChange={(event) => setCoachLanguages(event.target.value)}
+                        id="coach-languages"
+                        name="coach_languages"
+                        value={
+                          coachLanguages
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setCoachLanguages(
+                            event
+                              .target
+                              .value,
+                          )
+                        }
+                        disabled={
+                          saving
+                        }
                         className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
-                        placeholder="Français, Anglais..."
+                        placeholder="Français, Anglais…"
                       />
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                      <label
+                        htmlFor="coach-short-description"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
                         Description courte
                       </label>
+
                       <textarea
-                        value={coachShortDescription}
-                        onChange={(event) =>
-                          setCoachShortDescription(event.target.value)
+                        id="coach-short-description"
+                        name="coach_short_description"
+                        value={
+                          coachShortDescription
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setCoachShortDescription(
+                            event
+                              .target
+                              .value,
+                          )
                         }
                         rows={3}
-                        className="w-full resize-none rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
-                        placeholder="Résumé affiché sur les cartes intervenants."
+                        maxLength={
+                          500
+                        }
+                        disabled={
+                          saving
+                        }
+                        className="w-full resize-none rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold leading-6 outline-none transition focus:border-orange-500"
+                        placeholder="Résumé affiché sur les cartes des coachs."
                       />
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="mb-2 block text-sm font-bold text-slate-700">
-                        Certifications
+                      <label
+                        htmlFor="coach-certifications"
+                        className="mb-2 block text-sm font-bold text-slate-700"
+                      >
+                        Certifications textuelles
                       </label>
+
                       <textarea
-                        value={coachCertifications}
-                        onChange={(event) =>
-                          setCoachCertifications(event.target.value)
+                        id="coach-certifications"
+                        name="coach_certifications"
+                        value={
+                          coachCertifications
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          setCoachCertifications(
+                            event
+                              .target
+                              .value,
+                          )
                         }
                         rows={3}
-                        className="w-full resize-none rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500"
-                        placeholder="BPJEPS, Pilates Reformer, Yoga Alliance..."
+                        disabled={
+                          saving
+                        }
+                        className="w-full resize-none rounded-2xl border border-orange-100 bg-white px-4 py-3 text-sm font-semibold leading-6 outline-none transition focus:border-orange-500"
+                        placeholder="BPJEPS, Yoga Alliance, Pilates Reformer…"
                       />
                     </div>
                   </div>
 
-                  <div className="mt-5 rounded-[1.5rem] border border-orange-100 bg-white p-4">
-                    <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">
-                      <Video size={18} className="text-orange-500" />
-                      Vidéo de présentation 60 secondes maximum
+                  {/* Documents */}
+
+                  <div className="mt-6 rounded-[1.75rem] border border-orange-100 bg-white p-4 sm:p-5">
+                    <div className="mb-4 flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-700">
+                        <FileBadge2
+                          aria-hidden="true"
+                          size={19}
+                        />
+                      </span>
+
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900">
+                          Diplômes et justificatifs
+                        </h4>
+
+                        <p className="text-xs font-semibold text-slate-500">
+                          Ils seront vérifiés par
+                          l’équipe Gotfit.
+                        </p>
+                      </div>
+                    </div>
+
+                    <DocumentUploader
+                      files={
+                        newDocuments
+                      }
+                      onFilesChange={
+                        setNewDocuments
+                      }
+                      existingDocuments={
+                        existingDocuments
+                      }
+                      onRemoveExistingDocument={
+                        handleRemoveExistingDocument
+                      }
+                      label="Documents professionnels"
+                      description="Ajoutez vos diplômes, certifications et justificatifs professionnels."
+                      error={
+                        documentError
+                      }
+                      onError={
+                        setDocumentError
+                      }
+                      maxFiles={10}
+                      disabled={
+                        saving
+                      }
+                    />
+                  </div>
+
+                  {/* Vidéo */}
+
+                  <div className="mt-6 rounded-[1.75rem] border border-orange-100 bg-white p-4 sm:p-5">
+                    <label
+                      htmlFor="presentation-video"
+                      className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800"
+                    >
+                      <Video
+                        aria-hidden="true"
+                        size={18}
+                        className="text-orange-500"
+                      />
+
+                      Vidéo de présentation
                     </label>
+
+                    <p className="mb-4 text-xs font-semibold leading-5 text-slate-500">
+                      Formats vidéo standards,
+                      maximum{" "}
+
+                      {
+                        MAX_VIDEO_DURATION_SECONDS
+                      }{" "}
+
+                      secondes et{" "}
+
+                      {formatBytes(
+                        MAX_VIDEO_SIZE,
+                      )}
+                      .
+                    </p>
+
                     <input
+                      id="presentation-video"
                       type="file"
-                      accept="video/*"
-                      onChange={handlePresentationVideoChange}
-                      className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition file:mr-4 file:rounded-full file:border-0 file:bg-orange-600 file:px-4 file:py-2 file:text-sm file:font-black file:text-white hover:file:bg-orange-700"
+                      accept="video/mp4,video/webm,video/quicktime"
+                      onChange={
+                        handlePresentationVideoChange
+                      }
+                      disabled={
+                        saving
+                      }
+                      className="w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none transition file:mr-4 file:rounded-full file:border-0 file:bg-orange-600 file:px-4 file:py-2 file:text-sm file:font-black file:text-white hover:file:bg-orange-700 disabled:opacity-60"
                     />
 
-                    {presentationVideoDuration !== null && (
+                    {presentationVideoDuration !==
+                      null && (
                       <p className="mt-3 text-xs font-black text-orange-700">
-                        Durée détectée : {Math.round(presentationVideoDuration)}s /
-                        60s maximum
+                        Durée détectée :{" "}
+
+                        {Math.round(
+                          presentationVideoDuration,
+                        )}
+                        s /{" "}
+
+                        {
+                          MAX_VIDEO_DURATION_SECONDS
+                        }
+                        s
                       </p>
                     )}
 
                     {presentationVideoPreview && (
-                      <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950 p-2">
+                      <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950 p-2 shadow-lg">
                         <video
                           controls
-                          src={presentationVideoPreview}
+                          preload="metadata"
+                          src={
+                            presentationVideoPreview
+                          }
                           className="aspect-video w-full rounded-xl bg-black object-cover"
-                        />
+                        >
+                          Votre navigateur ne prend pas en charge la vidéo.
+                        </video>
                       </div>
                     )}
                   </div>
-                </div>
+                </section>
               )}
 
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-600 to-orange-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:from-orange-700 hover:to-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Enregistrement...
+                    <Loader2
+                      aria-hidden="true"
+                      size={18}
+                      className="animate-spin"
+                    />
+
+                    Enregistrement…
                   </>
                 ) : (
                   <>
-                    <Save size={18} />
+                    <Save
+                      aria-hidden="true"
+                      size={18}
+                    />
+
                     Enregistrer les modifications
                   </>
                 )}
@@ -1190,29 +3249,45 @@ export default function ProfilePage() {
             </div>
           </form>
 
-          <aside className="grid gap-6">
+          {/* Colonne droite */}
+
+          <aside className="grid content-start gap-6">
             {isIntervenantAccount && (
-              <div className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7">
+              <section className="rounded-[2rem] border border-orange-100 bg-white p-5 shadow-xl shadow-orange-500/5 sm:p-7">
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-black tracking-tight">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-600">
+                      Reversements
+                    </p>
+
+                    <h2 className="mt-1 text-2xl font-black tracking-tight">
                       Paiements Stripe
                     </h2>
+
                     <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-                      Activez votre compte sécurisé Stripe pour recevoir vos
-                      reversements après validation des prestations.
+                      Activez Stripe Connect pour
+                      recevoir les paiements de
+                      vos prestations.
                     </p>
                   </div>
 
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700">
-                    <Wallet size={20} />
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-700">
+                    <Wallet
+                      aria-hidden="true"
+                      size={21}
+                    />
                   </span>
                 </div>
 
-                <div className="rounded-2xl bg-orange-50 p-4">
+                <div className="rounded-2xl border border-orange-100 bg-orange-50 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <CreditCard className="text-orange-500" size={20} />
+                      <CreditCard
+                        aria-hidden="true"
+                        className="text-orange-500"
+                        size={20}
+                      />
+
                       <span className="text-sm font-bold text-slate-600">
                         Statut
                       </span>
@@ -1220,49 +3295,70 @@ export default function ProfilePage() {
 
                     <strong
                       className={`rounded-full px-3 py-1 text-xs font-black ${
-                        stripeStatus === "active"
+                        stripeStatus ===
+                        "active"
                           ? "bg-emerald-100 text-emerald-700"
-                          : stripeStatus === "pending"
+                          : stripeStatus ===
+                              "pending"
                             ? "bg-amber-100 text-amber-700"
                             : "bg-red-100 text-red-700"
                       }`}
                     >
-                      {stripeStatus === "active"
+                      {stripeStatus ===
+                      "active"
                         ? "Activé"
-                        : stripeStatus === "pending"
+                        : stripeStatus ===
+                            "pending"
                           ? "À compléter"
                           : "Non connecté"}
                     </strong>
                   </div>
 
                   <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
-                    {stripeStatus === "active"
-                      ? "Votre compte Stripe est prêt. Les reversements peuvent être envoyés vers votre banque."
-                      : stripeStatus === "pending"
-                        ? "Votre compte Stripe existe, mais Stripe attend encore certaines informations."
-                        : "Vous devez activer Stripe avant de pouvoir recevoir les reversements coach."}
+                    {stripeStatus ===
+                    "active"
+                      ? "Votre compte est prêt à recevoir des reversements."
+                      : stripeStatus ===
+                          "pending"
+                        ? "Stripe attend encore certaines informations."
+                        : "Vous devez connecter un compte Stripe pour recevoir vos reversements."}
                   </p>
                 </div>
 
                 <div className="mt-4 grid gap-3">
-                  {stripeStatus !== "active" && (
+                  {stripeStatus !==
+                    "active" && (
                     <button
                       type="button"
-                      onClick={handleStripeConnect}
-                      disabled={stripeLoading}
+                      onClick={() =>
+                        void handleStripeConnect()
+                      }
+                      disabled={
+                        stripeLoading
+                      }
                       className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {stripeLoading ? (
                         <>
-                          <Loader2 size={18} className="animate-spin" />
-                          Ouverture Stripe...
+                          <Loader2
+                            aria-hidden="true"
+                            size={18}
+                            className="animate-spin"
+                          />
+
+                          Ouverture de Stripe…
                         </>
                       ) : (
                         <>
-                          <CreditCard size={18} />
-                          {stripeStatus === "pending"
-                            ? "Continuer l’activation Stripe"
-                            : "Activer mes paiements Stripe"}
+                          <CreditCard
+                            aria-hidden="true"
+                            size={18}
+                          />
+
+                          {stripeStatus ===
+                          "pending"
+                            ? "Continuer l’activation"
+                            : "Activer Stripe"}
                         </>
                       )}
                     </button>
@@ -1270,266 +3366,453 @@ export default function ProfilePage() {
 
                   <button
                     type="button"
-                    onClick={refreshStripeStatus}
-                    disabled={stripeChecking}
+                    onClick={() =>
+                      void refreshStripeStatus()
+                    }
+                    disabled={
+                      stripeChecking
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {stripeChecking ? (
                       <>
-                        <Loader2 size={18} className="animate-spin" />
-                        Vérification...
+                        <Loader2
+                          aria-hidden="true"
+                          size={18}
+                          className="animate-spin"
+                        />
+
+                        Vérification…
                       </>
                     ) : (
                       <>
-                        <ShieldCheck size={18} />
-                        Vérifier le statut Stripe
+                        <RefreshCw
+                          aria-hidden="true"
+                          size={18}
+                        />
+
+                        Vérifier le statut
                       </>
                     )}
                   </button>
                 </div>
-              </div>
+              </section>
             )}
 
-            <div className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7">
+            <section className="rounded-[2rem] border border-orange-100 bg-white p-5 shadow-xl shadow-orange-500/5 sm:p-7">
               <h2 className="mb-5 text-2xl font-black tracking-tight">
                 Résumé du compte
               </h2>
 
               <div className="grid gap-3">
-                <div className="flex items-center justify-between rounded-2xl bg-orange-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <UserRound className="text-orange-500" size={20} />
-                    <span className="text-sm font-bold text-slate-600">
-                      Type de compte
-                    </span>
-                  </div>
-                  <strong className="text-sm font-black">{mainRole}</strong>
-                </div>
+                <SummaryItem
+                  icon={
+                    UserRound
+                  }
+                  label="Type de compte"
+                  value={
+                    mainRole
+                  }
+                />
 
-                <div className="flex items-center justify-between rounded-2xl bg-orange-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <CalendarCheck className="text-orange-500" size={20} />
-                    <span className="text-sm font-bold text-slate-600">
-                      Réservations
-                    </span>
-                  </div>
-                  <strong className="text-sm font-black">
-                    {reservations.length}
-                  </strong>
-                </div>
+                <SummaryItem
+                  icon={
+                    CalendarCheck
+                  }
+                  label="Réservations"
+                  value={String(
+                    reservations.length,
+                  )}
+                />
 
-                <div className="flex items-center justify-between rounded-2xl bg-orange-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="text-orange-500" size={20} />
-                    <span className="text-sm font-bold text-slate-600">
-                      Paiements
-                    </span>
-                  </div>
-                  <strong className="text-sm font-black">{paymentCount}</strong>
-                </div>
+                <SummaryItem
+                  icon={
+                    CreditCard
+                  }
+                  label="Paiements"
+                  value={String(
+                    paymentCount,
+                  )}
+                />
 
-                <div className="flex items-center justify-between rounded-2xl bg-orange-600 p-4 text-white">
+                <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-orange-600 to-orange-500 p-4 text-white shadow-lg shadow-orange-500/20">
                   <div className="flex items-center gap-3">
-                    <Wallet className="text-white/80" size={20} />
+                    <Wallet
+                      aria-hidden="true"
+                      className="text-white/80"
+                      size={20}
+                    />
+
                     <span className="text-sm font-bold text-white/80">
                       Total payé
                     </span>
                   </div>
+
                   <strong className="text-sm font-black">
-                    {formatMoney(totalPaid)}
+                    {formatMoney(
+                      totalPaid,
+                    )}
                   </strong>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7">
+            <section className="rounded-[2rem] border border-orange-100 bg-white p-5 shadow-xl shadow-orange-500/5 sm:p-7">
               <h2 className="mb-5 text-2xl font-black tracking-tight">
-                Rôles
+                Rôles et autorisations
               </h2>
 
               <div className="flex flex-wrap gap-2">
                 {user?.roles?.length ? (
-                  user.roles.map((role: any) => (
-                    <span
-                      key={role.id || role.slug || role.name}
-                      className="rounded-full bg-orange-100 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-orange-700"
-                    >
-                      {role.name || role.slug}
-                    </span>
-                  ))
+                  user.roles.map(
+                    (role) => (
+                      <span
+                        key={
+                          role.id ||
+                          role.slug ||
+                          role.name
+                        }
+                        className="rounded-full bg-orange-100 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-orange-700"
+                      >
+                        {role.name ||
+                          role.slug}
+                      </span>
+                    ),
+                  )
                 ) : (
                   <span className="text-sm font-semibold text-slate-500">
                     Aucun rôle trouvé.
                   </span>
                 )}
               </div>
-            </div>
+            </section>
           </aside>
         </section>
 
+        {/* Historiques */}
+
         <section className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight">
-                  Réservations récentes
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Vos dernières réservations Gotfit.
-                </p>
-              </div>
-
-              <CalendarCheck className="text-orange-300" size={26} />
-            </div>
-
+          <HistoryCard
+            title="Réservations récentes"
+            description="Vos dernières réservations Gotfit."
+            icon={
+              CalendarCheck
+            }
+          >
             <div className="grid gap-3">
-              {reservations.length ? (
-                reservations.slice(0, 5).map((reservation) => {
-                  const title =
-                    reservation.annonce?.title ||
-                    reservation.annonce?.name ||
-                    `Réservation #${reservation.id}`;
+              {reservations.length >
+              0 ? (
+                reservations
+                  .slice(0, 5)
+                  .map(
+                    (
+                      reservation,
+                    ) => {
+                      const title =
+                        reservation
+                          .annonce
+                          ?.title ||
+                        reservation
+                          .annonce
+                          ?.name ||
+                        `Réservation #${reservation.id}`;
 
-                  const status =
-                    reservation.status || reservation.reservation_status;
+                      const status =
+                        reservation.status ||
+                        reservation.reservation_status;
 
-                  const amount =
-                    reservation.amount ||
-                    reservation.total ||
-                    reservation.price ||
-                    reservation.annonce?.price;
+                      const amount =
+                        reservation.amount ??
+                        reservation.total ??
+                        reservation.price ??
+                        reservation
+                          .annonce
+                          ?.price;
 
-                  return (
-                    <div
-                      key={reservation.id}
-                      className="rounded-2xl border border-orange-100 bg-orange-50 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <strong className="block text-sm font-black text-slate-950">
-                            {title}
-                          </strong>
-                          <span className="mt-1 block text-xs font-semibold text-slate-500">
-                            {formatDateTime(
-                              reservation.date ||
-                                reservation.start_at ||
-                                reservation.created_at
+                      return (
+                        <div
+                          key={
+                            reservation.id
+                          }
+                          className="rounded-2xl border border-orange-100 bg-orange-50 p-4 transition hover:border-orange-200 hover:bg-orange-100/60"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <strong className="block text-sm font-black text-slate-950">
+                                {
+                                  title
+                                }
+                              </strong>
+
+                              <span className="mt-1 block text-xs font-semibold text-slate-500">
+                                {formatDateTime(
+                                  reservation.date ||
+                                    reservation.start_at ||
+                                    reservation.created_at,
+                                )}
+                              </span>
+                            </div>
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-black ${getStatusClasses(
+                                status,
+                              )}`}
+                            >
+                              {getStatusLabel(
+                                status,
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 text-sm font-black text-slate-950">
+                            {formatMoney(
+                              amount,
+                              reservation.currency ||
+                                "EUR",
                             )}
-                          </span>
+                          </div>
                         </div>
-
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-orange-700">
-                          {getStatusLabel(status)}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 text-sm font-black text-slate-950">
-                        {formatMoney(amount)}
-                      </div>
-                    </div>
-                  );
-                })
+                      );
+                    },
+                  )
               ) : (
-                <div className="rounded-2xl bg-orange-50 p-5 text-sm font-semibold text-slate-500">
-                  Aucune réservation trouvée.
-                </div>
+                <EmptyState message="Aucune réservation trouvée." />
               )}
             </div>
-          </div>
+          </HistoryCard>
 
-          <div className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-7">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight">
-                  Paiements récents
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Historique des paiements liés au compte.
-                </p>
-              </div>
-
-              <CreditCard className="text-orange-300" size={26} />
-            </div>
-
+          <HistoryCard
+            title="Paiements récents"
+            description="Historique des paiements liés au compte."
+            icon={
+              CreditCard
+            }
+          >
             <div className="grid gap-3">
-              {payments.length ? (
-                payments.slice(0, 5).map((payment) => {
-                  const amount = payment.amount || payment.total;
-                  const status = payment.status || payment.payment_status;
+              {payments.length >
+              0 ? (
+                payments
+                  .slice(0, 5)
+                  .map(
+                    (
+                      payment,
+                    ) => {
+                      const amount =
+                        payment.amount ??
+                        payment.total;
 
-                  return (
-                    <div
-                      key={payment.id}
-                      className="rounded-2xl border border-orange-100 bg-orange-50 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <strong className="block text-sm font-black text-slate-950">
-                            Paiement #{payment.id}
-                          </strong>
-                          <span className="mt-1 block text-xs font-semibold text-slate-500">
-                            {formatDateTime(payment.created_at)}
+                      const status =
+                        payment.status ||
+                        payment.payment_status;
+
+                      return (
+                        <div
+                          key={
+                            payment.id
+                          }
+                          className="rounded-2xl border border-orange-100 bg-orange-50 p-4 transition hover:border-orange-200 hover:bg-orange-100/60"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <strong className="block text-sm font-black text-slate-950">
+                                Paiement #
+                                {
+                                  payment.id
+                                }
+                              </strong>
+
+                              <span className="mt-1 block text-xs font-semibold text-slate-500">
+                                {formatDateTime(
+                                  payment.created_at,
+                                )}
+                              </span>
+                            </div>
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-black ${getStatusClasses(
+                                status,
+                              )}`}
+                            >
+                              {getStatusLabel(
+                                status,
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between gap-3">
+                            <span className="text-sm font-black text-slate-950">
+                              {formatMoney(
+                                amount,
+                              )}
+                            </span>
+
+                            {(payment.provider ||
+                              payment.method) && (
+                              <span className="text-xs font-bold text-slate-400">
+                                {payment.provider ||
+                                  payment.method}
+                              </span>
+                            )}
+                          </div>
+
+                          {payment.reference && (
+                            <div className="mt-2 text-xs font-semibold text-slate-400">
+                              Réf. :{" "}
+
+                              {
+                                payment.reference
+                              }
+                            </div>
+                          )}
+                        </div>
+                      );
+                    },
+                  )
+              ) : paidReservations.length >
+                0 ? (
+                paidReservations
+                  .slice(0, 5)
+                  .map(
+                    (
+                      reservation,
+                    ) => (
+                      <div
+                        key={`reservation-payment-${reservation.id}`}
+                        className="rounded-2xl border border-orange-100 bg-orange-50 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <strong className="block text-sm font-black text-slate-950">
+                              {reservation
+                                .annonce
+                                ?.title ||
+                                reservation
+                                  .annonce
+                                  ?.name ||
+                                `Réservation #${reservation.id}`}
+                            </strong>
+
+                            <span className="mt-1 block text-xs font-semibold text-slate-500">
+                              {formatDateTime(
+                                reservation.paid_at ||
+                                  reservation.created_at,
+                              )}
+                            </span>
+                          </div>
+
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+                            Payé
                           </span>
                         </div>
 
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-orange-700">
-                          {getStatusLabel(status)}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <span className="text-sm font-black text-slate-950">
-                          {formatMoney(amount)}
-                        </span>
-
-                        {(payment.provider || payment.method) && (
-                          <span className="text-xs font-bold text-slate-400">
-                            {payment.provider || payment.method}
-                          </span>
-                        )}
-                      </div>
-
-                      {payment.reference && (
-                        <div className="mt-2 text-xs font-semibold text-slate-400">
-                          Réf : {payment.reference}
+                        <div className="mt-3 text-sm font-black text-slate-950">
+                          {formatMoney(
+                            reservation.total_client_amount ??
+                              reservation.total ??
+                              reservation.amount ??
+                              reservation.price ??
+                              reservation
+                                .annonce
+                                ?.price,
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : paidReservations.length ? (
-                paidReservations.slice(0, 5).map((reservation) => (
-                  <div
-                    key={`reservation-payment-${reservation.id}`}
-                    className="rounded-2xl border border-orange-100 bg-orange-50 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <strong className="block text-sm font-black text-slate-950">
-                          {reservation.annonce?.title || reservation.annonce?.name || `Réservation #${reservation.id}`}
-                        </strong>
-                        <span className="mt-1 block text-xs font-semibold text-slate-500">
-                          {formatDateTime(reservation.paid_at || reservation.created_at)}
-                        </span>
                       </div>
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
-                        Payé
-                      </span>
-                    </div>
-                    <div className="mt-3 text-sm font-black text-slate-950">
-                      {formatMoney(reservation.total_client_amount ?? reservation.total ?? reservation.amount ?? reservation.price ?? reservation.annonce?.price)}
-                    </div>
-                  </div>
-                ))
+                    ),
+                  )
               ) : (
-                <div className="rounded-2xl bg-orange-50 p-5 text-sm font-semibold text-slate-500">
-                  Aucun paiement confirmé pour le moment.
-                </div>
+                <EmptyState message="Aucun paiement confirmé pour le moment." />
               )}
             </div>
-          </div>
+          </HistoryCard>
         </section>
       </div>
     </main>
+  );
+}
+
+/* =========================================================
+   COMPOSANTS AUXILIAIRES
+========================================================= */
+
+type SummaryItemProps = {
+  icon: typeof UserRound;
+  label: string;
+  value: string;
+};
+
+function SummaryItem({
+  icon: Icon,
+  label,
+  value,
+}: SummaryItemProps) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-orange-100 bg-orange-50 p-4">
+      <div className="flex items-center gap-3">
+        <Icon
+          aria-hidden="true"
+          className="text-orange-500"
+          size={20}
+        />
+
+        <span className="text-sm font-bold text-slate-600">
+          {label}
+        </span>
+      </div>
+
+      <strong className="text-sm font-black">
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+type HistoryCardProps = {
+  title: string;
+  description: string;
+  icon: typeof CalendarCheck;
+  children: ReactNode;
+};
+
+function HistoryCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: HistoryCardProps) {
+  return (
+    <section className="rounded-[2rem] border border-orange-100 bg-white p-5 shadow-xl shadow-orange-500/5 sm:p-7">
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight">
+            {title}
+          </h2>
+
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            {description}
+          </p>
+        </div>
+
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
+          <Icon
+            aria-hidden="true"
+            size={22}
+          />
+        </span>
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({
+  message,
+}: {
+  message: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50 p-6 text-center text-sm font-semibold text-slate-500">
+      {message}
+    </div>
   );
 }

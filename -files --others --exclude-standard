@@ -1,0 +1,72 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'AGENTS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'CLAUDE.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'CORRECTIONS_API_VISIO_2026-07-10.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'CORRECTIONS_CALENDRIER_VISIO.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'CORRECTIONS_DASHBOARD_CLIENT.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'CORRECTIONS_PAIEMENTS_VISIO.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'INSTALLATION_PRIORITE3_VISIO_WEBAPP.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README_PRIORITE5_PROFIL_INTERVENANT.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'eslint.config.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'next.config.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'postcss.config.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/dashboard/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/aide/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/annonces/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/annonces/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/auth/login/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/auth/register/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/cgu/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/client/dashboard/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/confidentialite/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/contact/contact.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/contact/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/globals.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/intervenant/dashboard/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/intervenants/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/intervenants/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/layout.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/mentions-legales/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/messages/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/onboarding/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/parcours-client/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/parcours-client/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/planning/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/profile/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/reservation/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/reservations/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/services/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/visio/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/visio/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/auth/AuthShell.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/auth/GoogleSignInButton.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/layout/Footer.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/layout/Header.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/api-config.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/auth.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/client-journey.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/contact.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/intervenants.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/marketplace.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/visio.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/types/auth.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tsconfig.json', LF will be replaced by CRLF the next time Git touches it
+ .gitignore                                 |    1 [31m-[m
+ src/app/auth/login/page.tsx                |  619 [32m+++++[m[31m-[m
+ src/app/auth/register/page.tsx             |  645 [32m++++++[m[31m-[m
+ src/app/intervenant/dashboard/page.tsx     | 1397 [32m+++++++++++++[m[31m-[m
+ src/app/onboarding/page.tsx                |  628 [32m++++[m[31m---[m
+ src/app/profile/page.tsx                   | 2791 [32m++++++++++++++++++++[m[31m--------[m
+ src/app/visio/[id]/page.tsx                | 1709 [32m++++++++++++++[m[31m---[m
+ src/app/visio/page.tsx                     | 1614 [32m+++++++++++++[m[31m---[m
+ src/components/auth/GoogleSignInButton.tsx |  492 [32m++++[m[31m-[m
+ src/lib/api-config.ts                      |  202 [32m+[m[31m-[m
+ src/lib/auth.ts                            | 1046 [32m++++++++++[m[31m-[m
+ src/lib/intervenants.ts                    | 1485 [32m+++++++++++++[m[31m--[m
+ src/lib/visio.ts                           | 1656 [32m+++++++++++++++[m[31m--[m
+ src/types/auth.ts                          |  895 [32m++++++++[m[31m-[m
+ 14 files changed, 13079 insertions(+), 2101 deletions(-)
