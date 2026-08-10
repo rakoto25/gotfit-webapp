@@ -1,5 +1,6 @@
 const DEFAULT_API_BASE_URL = "https://api.gotfit.tech/api";
 const DEFAULT_API_ORIGIN_URL = "https://api.gotfit.tech";
+const API_PROXY_PATH = "/api/gotfit-proxy";
 
 export const LOGO_URL = "/brand/gotfit-logo.png";
 
@@ -51,18 +52,74 @@ export function normalizeApiBaseUrl(url?: string | null): string {
   return `${cleanUrl}/api`;
 }
 
-export const API_BASE_URL = normalizeApiBaseUrl(
+export const API_TARGET_BASE_URL = normalizeApiBaseUrl(
   process.env.NEXT_PUBLIC_API_URL
 );
 
-export function getApiOriginUrl(apiBaseUrl = API_BASE_URL): string {
+function normalizeBasePath(value?: string | null): string {
+  const cleanValue = sanitizeUrl(value);
+
+  if (!cleanValue || cleanValue === "/") {
+    return "";
+  }
+
+  return `/${removeLeadingSlashes(removeTrailingSlashes(cleanValue))}`;
+}
+
+function getRuntimeBasePath(): string {
+  const configuredBasePath = normalizeBasePath(
+    process.env.NEXT_PUBLIC_BASE_PATH
+  );
+
+  if (configuredBasePath) {
+    return configuredBasePath;
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/webapp")
+  ) {
+    return "/webapp";
+  }
+
+  return "";
+}
+
+export function getApiProxyBaseUrl(): string {
+  return `${getRuntimeBasePath()}${API_PROXY_PATH}`;
+}
+
+export function getRuntimeApiBaseUrl(
+  apiTargetBaseUrl = API_TARGET_BASE_URL
+): string {
+  if (typeof window === "undefined") {
+    return apiTargetBaseUrl;
+  }
+
+  try {
+    const targetOrigin = new URL(apiTargetBaseUrl).origin;
+
+    if (targetOrigin !== window.location.origin) {
+      return getApiProxyBaseUrl();
+    }
+  } catch {
+    return apiTargetBaseUrl;
+  }
+
+  return apiTargetBaseUrl;
+}
+
+export const API_BROWSER_BASE_URL = getRuntimeApiBaseUrl();
+export const API_BASE_URL = API_BROWSER_BASE_URL;
+
+export function getApiOriginUrl(apiBaseUrl = API_TARGET_BASE_URL): string {
   const normalizedApiUrl = normalizeApiBaseUrl(apiBaseUrl);
 
   return normalizedApiUrl.replace(/\/api$/i, "");
 }
 
 export const API_ORIGIN_URL =
-  getApiOriginUrl(API_BASE_URL) || DEFAULT_API_ORIGIN_URL;
+  getApiOriginUrl(API_TARGET_BASE_URL) || DEFAULT_API_ORIGIN_URL;
 
 export function getApiUrl(
   endpoint?: string | null
@@ -161,7 +218,8 @@ export function getNetworkErrorMessage(
   return [
     `Impossible de ${context} depuis l’API Gotfit.`,
     "Vérifiez votre connexion Internet, la disponibilité du backend et la configuration de NEXT_PUBLIC_API_URL.",
-    `URL actuellement utilisée : ${API_BASE_URL}`,
+    `URL Laravel configurée : ${API_TARGET_BASE_URL}`,
+    `URL utilisée par le navigateur : ${API_BASE_URL}`,
   ].join(" ");
 }
 
@@ -200,6 +258,7 @@ export function isApiConfigured(): boolean {
 
 export const API_CONFIG = {
   baseUrl: API_BASE_URL,
+  targetBaseUrl: API_TARGET_BASE_URL,
   originUrl: API_ORIGIN_URL,
   logoUrl: LOGO_URL,
 } as const;

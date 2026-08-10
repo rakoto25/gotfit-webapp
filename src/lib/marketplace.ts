@@ -25,6 +25,24 @@ export type GotfitUser = {
   stripe_onboarding_completed?: boolean;
 };
 
+export type ReviewClient = Pick<
+  GotfitUser,
+  "id" | "name" | "email" | "photo" | "photo_url"
+>;
+
+export type Review = {
+  id: number;
+  reservation_id?: number | null;
+  client_id?: number | null;
+  intervenant_id?: number | null;
+  rating: number | string;
+  comment?: string | null;
+  status?: string | null;
+  client?: ReviewClient | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type Annonce = {
   id: number;
   titre?: string | null;
@@ -85,6 +103,7 @@ export type Reservation = {
   calendar_url?: string | null;
   visio_session_id?: number | null;
   visio_session?: { id?: number | null; status?: string | null } | null;
+  review?: Review | null;
   start?: string | null;
   end?: string | null;
 };
@@ -555,6 +574,46 @@ export async function disputePrestation(reservationId: number, reason: string) {
         reason,
       },
     }
+  );
+}
+
+export async function fetchIntervenantReviews(intervenantId: string | number) {
+  const payload = await apiRequest<{
+    reviews?: Review[];
+    data?: Review[];
+  }>(`/intervenants/${intervenantId}/reviews`);
+
+  return normalizeArray<Review>(payload, ["reviews"]);
+}
+
+export async function submitReservationReview(
+  reservationId: string | number,
+  body: {
+    rating: number;
+    comment?: string;
+  }
+) {
+  const payload = await apiRequest<{ review?: Review }>(
+    `/reservations/${reservationId}/review`,
+    {
+      method: "POST",
+      auth: true,
+      body,
+    }
+  );
+
+  if (!payload.review?.id) {
+    throw new Error("L'avis a ete envoye, mais la reponse API est incomplete.");
+  }
+
+  return payload.review;
+}
+
+export function canReviewReservation(reservation: Reservation) {
+  return (
+    isReservationPaid(reservation) &&
+    (reservation.status || "").toLowerCase() === "realise" &&
+    !reservation.review?.id
   );
 }
 

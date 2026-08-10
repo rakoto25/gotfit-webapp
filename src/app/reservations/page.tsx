@@ -32,6 +32,7 @@ import {
   formatMoney,
   getAnnonceTitle,
   canAddReservationToCalendar,
+  canReviewReservation,
   downloadReservationCalendar,
   getReservationVisioHref,
   canAccessReservationVisio,
@@ -101,6 +102,10 @@ function canDispute(reservation: Reservation) {
       reservation.prestation_status || ""
     )
   );
+}
+
+function getReservationIntervenantId(reservation: Reservation) {
+  return reservation.intervenant_id || reservation.intervenant?.id || null;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -357,6 +362,8 @@ export default function ReservationsPage() {
               const primaryStatus =
                 reservation.prestation_status || reservation.status;
               const isBusy = actionLoading === reservation.id;
+              const reservationIntervenantId =
+                getReservationIntervenantId(reservation);
 
               return (
                 <article
@@ -529,6 +536,18 @@ export default function ReservationsPage() {
                           Ouvrir un litige
                         </button>
                       )}
+
+                      {roleLabel === "client" &&
+                        reservationIntervenantId &&
+                        canReviewReservation(reservation) && (
+                          <Link
+                            href={`/intervenants/${reservationIntervenantId}?reservation=${reservation.id}#avis`}
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white transition hover:bg-orange-700"
+                          >
+                            Laisser un avis
+                            <ArrowRight size={17} />
+                          </Link>
+                        )}
 
                       {reservation.stripe_transfer_id && (
                         <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold leading-5 text-emerald-700">

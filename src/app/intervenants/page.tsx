@@ -26,7 +26,7 @@ import {
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { getToken } from "@/lib/auth";
-import { API_BASE_URL } from "@/lib/api-config";
+import { getApiUrl, getNetworkErrorMessage } from "@/lib/api-config";
 import {
   getCoachDescription,
   getCoachExperience,
@@ -67,6 +67,33 @@ function getProtectedUrl(targetUrl: string) {
   return getToken() ? targetUrl : buildAuthUrl(targetUrl);
 }
 
+async function fetchJson<T>(endpoint: string, headers: HeadersInit): Promise<T> {
+  let response: Response;
+
+  try {
+    response = await fetch(getApiUrl(endpoint), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error(getNetworkErrorMessage("charger les intervenants"));
+  }
+
+  const payload = (await response.json().catch(() => null)) as T | null;
+
+  if (!response.ok) {
+    const message =
+      payload && !Array.isArray(payload) && typeof payload === "object"
+        ? (payload as { message?: string }).message
+        : undefined;
+
+    throw new Error(message || `Erreur API intervenants : ${response.status}`);
+  }
+
+  return payload as T;
+}
+
 async function fetchIntervenants(): Promise<Intervenant[]> {
   const token = getToken();
 
@@ -78,20 +105,11 @@ async function fetchIntervenants(): Promise<Intervenant[]> {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}/intervenants`, {
-    method: "GET",
-    headers,
-    cache: "no-store",
-  });
-
-  const payload = (await response.json().catch(() => null)) as
+  const payload = await fetchJson<
     | ApiIntervenantsResponse
     | Intervenant[]
-    | null;
-
-  if (!response.ok) {
-    throw new Error((!Array.isArray(payload) ? payload?.message : undefined) || `Erreur API intervenants : ${response.status}`);
-  }
+    | null
+  >("/intervenants", headers);
 
   return normalizeIntervenants(payload).filter(isPublicIntervenant);
 }
@@ -120,8 +138,6 @@ export default function IntervenantsPage() {
           setIntervenants(items);
         }
       } catch (error) {
-        console.error("Erreur chargement intervenants:", error);
-
         if (mounted) {
           setIntervenants([]);
           setErrorMessage(
