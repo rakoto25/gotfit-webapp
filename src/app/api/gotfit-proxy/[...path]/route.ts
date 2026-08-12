@@ -5,7 +5,7 @@ type ProxyParams = {
 };
 
 type ProxyContext = {
-  params: ProxyParams | Promise<ProxyParams>;
+  params: Promise<ProxyParams>;
 };
 
 const HOP_BY_HOP_HEADERS = new Set([

@@ -286,6 +286,32 @@ export async function fetchAnnonce(id: string | number) {
   }
 }
 
+export async function createAnnonce(body: FormData) {
+  const payload = await apiRequest<{
+    annonce?: Annonce;
+    data?: Annonce;
+  }>("/annonces", {
+    method: "POST",
+    auth: true,
+    body,
+  });
+
+  const annonce = payload.annonce || payload.data;
+
+  if (!annonce?.id) {
+    throw new Error(
+      "L’annonce a été envoyée, mais la réponse de l’API est incomplète."
+    );
+  }
+
+  return {
+    annonce,
+    message:
+      payload.message ||
+      "Annonce créée. Elle sera publiée après validation de l’administration.",
+  };
+}
+
 export async function reserveAnnonce(
   annonceId: string | number,
   body: {

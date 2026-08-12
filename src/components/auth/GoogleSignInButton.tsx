@@ -280,7 +280,9 @@ export default function GoogleSignInButton({
         );
 
         router.replace(
-          getPostAuthRoute(result.user)
+          flow === "register"
+            ? "/profile"
+            : getPostAuthRoute(result.user)
         );
 
         router.refresh();

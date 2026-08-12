@@ -4,23 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ??
-  "https://api.gotfit.tech/api"
-).replace(/\/+$/, "");
-
-const DASHBOARD_ENDPOINT = `${API_URL}/intervenant/dashboard`;
-
-const TOKEN_STORAGE_KEYS = [
-  "gotfit:token",
-  "auth_token",
-  "token",
-] as const;
-
-const USER_STORAGE_KEYS = [
-  "gotfit:user",
-  "user",
-] as const;
+import {
+  clearAuth,
+  getCurrentUser,
+  getPostAuthRoute,
+  getToken,
+  isCoach,
+} from "@/lib/auth";
+import { getApiUrl } from "@/lib/api-config";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -152,12 +143,6 @@ function getNumber(
   return fallback;
 }
 
-function getBoolean(
-  value: unknown,
-): boolean {
-  return value === true || value === 1 || value === "1";
-}
-
 function getFirstString(
   values: unknown[],
   fallback = "",
@@ -196,60 +181,41 @@ function getFirstNumber(
   return fallback;
 }
 
-function readFirstStorageValue(
-  keys: readonly string[],
-): string | null {
-  if (typeof window === "undefined") {
-    return null;
+function getUserRole(
+  user: UnknownRecord,
+  fallbackUser: UnknownRecord,
+): string {
+  const directRole = getFirstString([
+    user.role,
+    user.role_name,
+    user.user_type,
+    fallbackUser.role,
+    fallbackUser.role_name,
+    fallbackUser.user_type,
+  ]);
+
+  if (directRole) {
+    return directRole.toLowerCase();
   }
 
-  for (const key of keys) {
-    const value = window.localStorage.getItem(key);
+  const roleCollections = [user.roles, fallbackUser.roles];
 
-    if (value) {
-      return value;
+  for (const collection of roleCollections) {
+    if (!Array.isArray(collection)) continue;
+
+    for (const rawRole of collection) {
+      const role = getRecord(rawRole);
+      const roleName = getFirstString([
+        typeof rawRole === "string" ? rawRole : null,
+        role.slug,
+        role.name,
+      ]);
+
+      if (roleName) return roleName.toLowerCase();
     }
   }
 
-  return null;
-}
-
-function readAuthToken(): string | null {
-  return readFirstStorageValue(
-    TOKEN_STORAGE_KEYS,
-  );
-}
-
-function readStoredUser(): UnknownRecord {
-  const rawUser = readFirstStorageValue(
-    USER_STORAGE_KEYS,
-  );
-
-  if (!rawUser) {
-    return {};
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(rawUser);
-
-    return getRecord(parsed);
-  } catch {
-    return {};
-  }
-}
-
-function removeStoredAuthentication(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  TOKEN_STORAGE_KEYS.forEach((key) => {
-    window.localStorage.removeItem(key);
-  });
-
-  USER_STORAGE_KEYS.forEach((key) => {
-    window.localStorage.removeItem(key);
-  });
+  return "intervenant";
 }
 
 function normalizeUser(
@@ -268,6 +234,14 @@ function normalizeUser(
     fallbackUser.profile ??
       fallbackUser.intervenant_profile ??
       fallbackUser.coach_profile,
+  );
+
+  const professionalDocuments = getRecord(
+    user.professional_documents,
+  );
+
+  const fallbackProfessionalDocuments = getRecord(
+    fallbackUser.professional_documents,
   );
 
   return {
@@ -297,27 +271,27 @@ function normalizeUser(
       fallbackUser.email,
     ]),
 
-    role: getFirstString(
-      [
-        user.role,
-        fallbackUser.role,
-      ],
-      "intervenant",
-    ).toLowerCase(),
+    role: getUserRole(user, fallbackUser),
 
     avatarUrl:
       getFirstString([
         user.avatar_url,
         user.avatar,
+        user.photo_url,
+        user.photo,
         profile.avatar_url,
         fallbackUser.avatar_url,
         fallbackUser.avatar,
+        fallbackUser.photo_url,
+        fallbackUser.photo,
       ]) || null,
 
     activityName: getFirstString([
       user.activity_name,
       user.business_name,
       user.nom_activite,
+      user.coach_title,
+      user.coach_speciality,
       profile.activity_name,
       profile.business_name,
       profile.nom_activite,
@@ -339,7 +313,9 @@ function normalizeUser(
       user.certifications_count,
       profile.documents_count,
       profile.certifications_count,
+      professionalDocuments.total,
       fallbackUser.documents_count,
+      fallbackProfessionalDocuments.total,
       fallbackProfile.documents_count,
     ]),
 
@@ -347,6 +323,7 @@ function normalizeUser(
       [
         user.verification_status,
         user.validation_status,
+        user.account_status,
         user.status,
         profile.verification_status,
         profile.validation_status,
@@ -375,6 +352,23 @@ function normalizeReservation(
     reservation.session ??
       reservation.appointment,
   );
+
+  const annonce = getRecord(reservation.annonce);
+  const visioSession = getRecord(
+    reservation.visio_session ?? reservation.visioSession,
+  );
+  const reservationDate = getFirstString([
+    reservation.reservation_date,
+    reservation.date,
+  ]);
+  const reservationTime = getFirstString([
+    reservation.reservation_time,
+    reservation.time,
+  ]);
+  const combinedStart =
+    reservationDate && reservationTime
+      ? `${reservationDate.slice(0, 10)}T${reservationTime}`
+      : "";
 
   return {
     id: getFirstString(
@@ -409,8 +403,8 @@ function normalizeReservation(
         reservation.starts_at,
         reservation.start_at,
         reservation.scheduled_at,
-        reservation.reservation_date,
-        reservation.date,
+        combinedStart,
+        reservationDate,
         session.starts_at,
         session.scheduled_at,
       ]) || null,
@@ -428,6 +422,7 @@ function normalizeReservation(
         reservation.type,
         reservation.session_type,
         reservation.mode,
+        annonce.type_prestation,
         session.type,
       ],
       "Séance",
@@ -452,6 +447,8 @@ function normalizeReservation(
         reservation.video_url,
         session.meeting_url,
         session.visio_url,
+        visioSession.join_url,
+        visioSession.server_url,
       ]) || null,
   };
 }
@@ -527,12 +524,68 @@ function normalizeDashboard(
     root.reservations ??
     [];
 
-  const upcomingReservations =
-    Array.isArray(rawReservations)
-      ? rawReservations.map(
-          normalizeReservation,
-        )
-      : [];
+  const reservations = Array.isArray(rawReservations)
+    ? rawReservations
+    : [];
+
+  const normalizedReservations = reservations.map(
+    normalizeReservation,
+  );
+
+  const inactiveStatuses = new Set([
+    "annule",
+    "annulee",
+    "cancelled",
+    "refuse",
+    "refused",
+    "realise",
+    "termine",
+    "completed",
+  ]);
+
+  const upcomingReservations = normalizedReservations
+    .filter((reservation) => {
+      if (inactiveStatuses.has(reservation.status)) return false;
+      if (!reservation.startsAt) return true;
+
+      const startsAt = new Date(reservation.startsAt).getTime();
+      return Number.isNaN(startsAt) || startsAt >= Date.now();
+    })
+    .sort((left, right) => {
+      const leftTime = left.startsAt ? new Date(left.startsAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const rightTime = right.startsAt ? new Date(right.startsAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return leftTime - rightTime;
+    })
+    .slice(0, 8);
+
+  const pendingReservations = normalizedReservations.filter((reservation) =>
+    ["attente", "pending", "en_attente"].includes(reservation.status),
+  ).length;
+
+  const clientIds = new Set(
+    reservations
+      .map((reservation) => {
+        const record = getRecord(reservation);
+        const client = getRecord(record.client);
+        return getFirstString([record.client_id, client.id]);
+      })
+      .filter(Boolean),
+  );
+
+  const now = new Date();
+  const monthlySessions = normalizedReservations.filter((reservation) => {
+    if (!["realise", "termine", "completed"].includes(reservation.status)) {
+      return false;
+    }
+
+    if (!reservation.startsAt) return false;
+    const date = new Date(reservation.startsAt);
+    return (
+      !Number.isNaN(date.getTime()) &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear()
+    );
+  }).length;
 
   const profileCompletion =
     Math.min(
@@ -599,7 +652,7 @@ function normalizeDashboard(
         statistics.pending_reservations,
         statistics.reservations_pending,
         root.pending_reservations_count,
-      ]),
+      ], pendingReservations),
 
       upcomingReservations: getFirstNumber(
         [
@@ -616,14 +669,14 @@ function normalizeDashboard(
         statistics.coaches_count,
         root.clients_count,
         root.coachees_count,
-      ]),
+      ], clientIds.size),
 
       monthlySessions: getFirstNumber([
         statistics.monthly_sessions,
         statistics.sessions_this_month,
         statistics.completed_sessions_month,
         root.monthly_sessions_count,
-      ]),
+      ], monthlySessions),
     },
 
     upcomingReservations,
@@ -839,36 +892,29 @@ export default function IntervenantDashboardPage() {
       setStatus("loading");
       setErrorMessage("");
 
-      const token = readAuthToken();
-      const storedUser = readStoredUser();
+      const token = getToken();
+      const currentUser = getCurrentUser();
+      const storedUser = getRecord(currentUser);
 
-      if (!token) {
+      if (!token || !currentUser) {
         router.replace(
-          "/login?redirect=/intervenant/dashboard",
+          "/auth/login?redirect=/intervenant/dashboard",
         );
 
         return;
       }
 
-      const storedRole = getString(
-        storedUser.role,
-      ).toLowerCase();
-
-      if (
-        storedRole &&
-        !["intervenant", "coach"].includes(
-          storedRole,
-        )
-      ) {
-        router.replace("/dashboard");
+      if (!isCoach(currentUser)) {
+        router.replace(
+          getPostAuthRoute(currentUser),
+        );
 
         return;
       }
 
       try {
-        const response = await fetch(
-          DASHBOARD_ENDPOINT,
-          {
+        const [profileResponse, reservationsResponse] = await Promise.all([
+          fetch(getApiUrl("profile"), {
             method: "GET",
             headers: {
               Accept: "application/json",
@@ -876,27 +922,40 @@ export default function IntervenantDashboardPage() {
             },
             cache: "no-store",
             signal,
-          },
-        );
+          }),
+          fetch(getApiUrl("reservation/intervenant"), {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+            signal,
+          }),
+        ]);
 
-        if (response.status === 401) {
-          removeStoredAuthentication();
+        if (
+          profileResponse.status === 401 ||
+          reservationsResponse.status === 401
+        ) {
+          clearAuth();
 
           router.replace(
-            "/login?redirect=/intervenant/dashboard",
+            "/auth/login?redirect=/intervenant/dashboard",
           );
 
           return;
         }
 
-        const payload: unknown =
-          await response
-            .json()
-            .catch(() => ({}));
+        const [profilePayload, reservationsPayload] = await Promise.all([
+          profileResponse.json().catch(() => ({})),
+          reservationsResponse.json().catch(() => ({})),
+        ]);
 
-        if (!response.ok) {
-          const responseData =
-            getRecord(payload);
+        if (!profileResponse.ok || !reservationsResponse.ok) {
+          const responseData = getRecord(
+            !profileResponse.ok ? profilePayload : reservationsPayload,
+          );
 
           throw new Error(
             getFirstString(
@@ -908,6 +967,20 @@ export default function IntervenantDashboardPage() {
             ),
           );
         }
+
+        const profileData = getRecord(profilePayload);
+        const reservationsData = getRecord(reservationsPayload);
+        const payload = {
+          user:
+            profileData.user ??
+            getRecord(profileData.data).user ??
+            profileData.data ??
+            currentUser,
+          reservations:
+            reservationsData.reservations ??
+            reservationsData.data ??
+            [],
+        };
 
         const normalizedDashboard =
           normalizeDashboard(
@@ -924,7 +997,9 @@ export default function IntervenantDashboardPage() {
             normalizedDashboard.user.role,
           )
         ) {
-          router.replace("/dashboard");
+          router.replace(
+            getPostAuthRoute(currentUser),
+          );
 
           return;
         }
@@ -953,8 +1028,9 @@ export default function IntervenantDashboardPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-
-    void loadDashboard(controller.signal);
+    const initialLoad = window.setTimeout(() => {
+      void loadDashboard(controller.signal);
+    }, 0);
 
     const handleAuthChange = () => {
       void loadDashboard();
@@ -971,6 +1047,7 @@ export default function IntervenantDashboardPage() {
     );
 
     return () => {
+      window.clearTimeout(initialLoad);
       controller.abort();
 
       window.removeEventListener(
@@ -1079,12 +1156,19 @@ export default function IntervenantDashboardPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col items-start gap-3 sm:flex-row lg:flex-col lg:items-end">
+                <div className="flex flex-col items-start gap-3 sm:flex-row lg:max-w-sm lg:flex-row lg:flex-wrap lg:justify-end">
                   <span
                     className={`inline-flex rounded-full border px-4 py-2 text-xs font-black ${verificationClasses}`}
                   >
                     {verificationLabel}
                   </span>
+
+                  <Link
+                    href="/intervenant/annonces/nouvelle"
+                    className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-amber-50 hover:shadow-lg"
+                  >
+                    Créer une annonce
+                  </Link>
 
                   <Link
                     href="/reservations"

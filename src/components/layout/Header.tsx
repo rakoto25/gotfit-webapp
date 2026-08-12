@@ -31,7 +31,11 @@ function isActiveRoute(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function Header() {
+type HeaderProps = {
+  showMobileShortcuts?: boolean;
+};
+
+export default function Header({ showMobileShortcuts = true }: HeaderProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -226,38 +230,40 @@ export default function Header() {
         </div>
       )}
 
-      <nav
-        aria-label="Raccourcis mobiles"
-        className="fixed bottom-3 left-3 right-3 z-40 grid grid-cols-4 gap-1 rounded-[1.4rem] border border-white/80 bg-white/92 p-2 shadow-[0_20px_60px_rgba(21,33,27,0.16)] backdrop-blur-xl lg:hidden"
-      >
-        {[
-          { href: "/annonces", label: "Explorer", icon: Search },
-          {
-            href: user ? "/planning" : "/auth/login",
-            label: "Planning",
-            icon: CalendarDays,
-          },
-          { href: "/aide", label: "Aide", icon: CircleHelp },
-          {
-            href: user ? "/profile" : "/auth/login",
-            label: user ? "Profil" : "Connexion",
-            icon: user ? UserRound : LogIn,
-          },
-        ].map(({ href, label, icon: Icon }, index) => (
-          <Link
-            key={`${href}-${label}`}
-            href={href}
-            className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-2.5 text-[10px] font-black ${
-              index === 1
-                ? "bg-[var(--ink)] text-white"
-                : "text-slate-600"
-            }`}
-          >
-            <Icon size={17} />
-            {label}
-          </Link>
-        ))}
-      </nav>
+      {showMobileShortcuts && (
+        <nav
+          aria-label="Raccourcis mobiles"
+          className="fixed bottom-3 left-3 right-3 z-40 grid grid-cols-4 gap-1 rounded-[1.4rem] border border-white/80 bg-white/92 p-2 shadow-[0_20px_60px_rgba(21,33,27,0.16)] backdrop-blur-xl lg:hidden"
+        >
+          {[
+            { href: "/annonces", label: "Explorer", icon: Search },
+            {
+              href: user ? "/planning" : "/auth/login",
+              label: "Planning",
+              icon: CalendarDays,
+            },
+            { href: "/aide", label: "Aide", icon: CircleHelp },
+            {
+              href: user ? "/profile" : "/auth/login",
+              label: user ? "Profil" : "Connexion",
+              icon: user ? UserRound : LogIn,
+            },
+          ].map(({ href, label, icon: Icon }, index) => (
+            <Link
+              key={`${href}-${label}`}
+              href={href}
+              className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-2.5 text-[10px] font-black ${
+                index === 1
+                  ? "bg-[var(--ink)] text-white"
+                  : "text-slate-600"
+              }`}
+            >
+              <Icon size={17} />
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
     </>
   );
 }

@@ -741,6 +741,13 @@ export default function CoachProfessionalProfile({
           {editable && (
             <div className="flex flex-wrap gap-2 pb-1">
               <Link
+                href="/intervenant/annonces/nouvelle"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--brand)] px-4 text-xs font-black text-[var(--ink)] transition hover:bg-[var(--brand-soft)]"
+              >
+                Créer une annonce
+              </Link>
+
+              <Link
                 href={dashboardHref}
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
               >

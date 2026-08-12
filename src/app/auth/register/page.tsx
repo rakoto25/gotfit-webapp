@@ -158,17 +158,6 @@ export default function RegisterPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!isCoach) {
-      setCompanyName("");
-      setSiret("");
-      setDocuments([]);
-      setDocumentError("");
-
-      clearPendingCoachRegistration();
-    }
-  }, [isCoach]);
-
-  useEffect(() => {
     if (
       typeof window === "undefined" ||
       !isCoach
@@ -200,6 +189,13 @@ export default function RegisterPage() {
     setRole(nextRole);
     setError("");
     setDocumentError("");
+
+    if (nextRole !== "intervenant") {
+      setCompanyName("");
+      setSiret("");
+      setDocuments([]);
+      clearPendingCoachRegistration();
+    }
   }
 
   function validateCoachInformation(): boolean {
@@ -417,9 +413,7 @@ export default function RegisterPage() {
 
       clearPendingCoachRegistration();
 
-      router.replace(
-        getPostAuthRoute(result.user)
-      );
+      router.replace("/profile");
 
       router.refresh();
     } catch (registerError) {
