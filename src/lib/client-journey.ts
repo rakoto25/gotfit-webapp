@@ -118,12 +118,25 @@ export async function fetchClientOnboarding(clientId: number | string) {
   return payload.onboarding || null;
 }
 
+export async function fetchAssignableCoaches() {
+  const payload = await apiRequest<{
+    data?: GotfitUser[];
+    coaches?: GotfitUser[];
+    intervenants?: GotfitUser[];
+  }>("/intervenants");
+
+  return normalizeArray<GotfitUser>(payload, ["intervenants", "coaches"])
+    .filter((coach) => Boolean(coach.id && coach.name))
+    .sort((first, second) => first.name.localeCompare(second.name, "fr-FR"));
+}
+
 export async function createClientNote(
   clientId: number | string,
   body: {
     title?: string;
     content: string;
     visibility: "private" | "shared";
+    intervenant_id?: number | null;
     reservation_id?: number | null;
     is_pinned?: boolean;
   }

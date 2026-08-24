@@ -9,11 +9,13 @@ import {
   Clock3,
   Loader2,
   MapPin,
+  Megaphone,
   Search,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   UserRound,
+  UserSearch,
   Wifi,
 } from "lucide-react";
 
@@ -28,8 +30,22 @@ import {
   getAssetUrl,
 } from "@/lib/marketplace";
 
-function getCoachName(annonce: Annonce) {
-  return annonce.intervenant?.name || annonce.user?.name || "Coach Gotfit";
+function isClientRequest(annonce: Annonce) {
+  return annonce.announcement_type === "client_request";
+}
+
+function getPublisherName(annonce: Annonce) {
+  return annonce.intervenant?.name || annonce.user?.name || "Membre Gotfit";
+}
+
+function getPriceLabel(annonce: Annonce) {
+  if (isClientRequest(annonce)) {
+    return Number(annonce.price || 0) > 0
+      ? `Budget ${formatMoney(annonce.price)}`
+      : "Budget à discuter";
+  }
+
+  return formatMoney(annonce.price);
 }
 
 function getAnnonceImage(annonce: Annonce) {
@@ -52,6 +68,7 @@ export default function AnnoncesPage() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [announcementType, setAnnouncementType] = useState("all");
 
   useEffect(() => {
     async function loadAnnonces() {
@@ -90,7 +107,7 @@ export default function AnnoncesPage() {
         getAnnonceDescription(annonce),
         annonce.category,
         annonce.type_prestation,
-        getCoachName(annonce),
+        getPublisherName(annonce),
         getLocation(annonce),
       ]
         .filter(Boolean)
@@ -100,10 +117,13 @@ export default function AnnoncesPage() {
       const matchesQuery = !cleanQuery || haystack.includes(cleanQuery);
       const matchesCategory =
         category === "all" || annonce.category === category;
+      const matchesType =
+        announcementType === "all" ||
+        annonce.announcement_type === announcementType;
 
-      return matchesQuery && matchesCategory;
+      return matchesQuery && matchesCategory && matchesType;
     });
-  }, [annonces, category, query]);
+  }, [annonces, announcementType, category, query]);
 
   return (
     <>
@@ -123,14 +143,22 @@ export default function AnnoncesPage() {
                 </span>
 
                 <h1 className="max-w-4xl text-4xl font-black leading-[1.05] tracking-tight text-slate-950 sm:text-6xl">
-                  Réservez un coach, payez en sécurité.
+                  Prestations de coachs et demandes de clients.
                 </h1>
 
                 <p className="mt-6 max-w-2xl text-base font-medium leading-8 text-slate-600">
-                  Découvrez les prestations des intervenants Gotfit. Le paiement
-                  est encaissé par la plateforme, puis reversé au coach après la
-                  validation de la prestation.
+                  Réservez une prestation ou publiez votre propre recherche de
+                  coach. Les demandes validées permettent aux intervenants de
+                  découvrir vos objectifs et de vous contacter.
                 </p>
+
+                <Link
+                  href="/annonces/nouvelle"
+                  className="mt-7 inline-flex items-center gap-2 rounded-full bg-slate-950 px-6 py-4 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800"
+                >
+                  <Megaphone size={18} />
+                  Publier une annonce
+                </Link>
               </div>
 
               <div className="grid gap-3 rounded-[2rem] border border-white/80 bg-white/75 p-3 shadow-[0_24px_80px_rgba(249,115,22,0.12)] backdrop-blur-xl sm:grid-cols-3 lg:grid-cols-1">
@@ -167,7 +195,7 @@ export default function AnnoncesPage() {
             </div>
 
             <div className="mt-10 rounded-[2rem] border border-orange-100 bg-white p-4 shadow-sm">
-              <div className="grid gap-3 md:grid-cols-[1fr_240px]">
+              <div className="grid gap-3 md:grid-cols-[1fr_220px_220px]">
                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <Search size={19} className="text-slate-400" />
                   <input
@@ -191,6 +219,19 @@ export default function AnnoncesPage() {
                         {item}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <UserSearch size={19} className="text-slate-400" />
+                  <select
+                    value={announcementType}
+                    onChange={(event) => setAnnouncementType(event.target.value)}
+                    className="w-full bg-transparent text-sm font-black text-slate-700 outline-none"
+                  >
+                    <option value="all">Tous les types</option>
+                    <option value="coach_service">Prestations coach</option>
+                    <option value="client_request">Recherches clients</option>
                   </select>
                 </div>
               </div>
@@ -218,7 +259,7 @@ export default function AnnoncesPage() {
                 <h2 className="text-2xl font-black">Aucune annonce trouvée</h2>
                 <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-slate-500">
                   Essayez une autre recherche ou revenez plus tard, les
-                  intervenants ajoutent régulièrement de nouvelles prestations.
+                  membres ajoutent régulièrement de nouvelles annonces.
                 </p>
               </div>
             )}
@@ -250,7 +291,12 @@ export default function AnnoncesPage() {
                         {annonce.category || "Coaching"}
                       </div>
 
-                      {annonce.is_online ? (
+                      {isClientRequest(annonce) ? (
+                        <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-orange-600 px-3 py-1 text-xs font-black text-white">
+                          <UserSearch size={13} />
+                          Recherche de coach
+                        </div>
+                      ) : annonce.is_online ? (
                         <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-slate-950/90 px-3 py-1 text-xs font-black text-white">
                           <Wifi size={13} />
                           Online
@@ -262,10 +308,10 @@ export default function AnnoncesPage() {
                       <div className="mb-4 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-xs font-black text-slate-500">
                           <UserRound size={15} />
-                          {getCoachName(annonce)}
+                          {isClientRequest(annonce) ? "Client" : "Coach"} · {getPublisherName(annonce)}
                         </div>
                         <strong className="text-lg font-black text-orange-700">
-                          {formatMoney(annonce.price)}
+                          {getPriceLabel(annonce)}
                         </strong>
                       </div>
 
@@ -275,7 +321,9 @@ export default function AnnoncesPage() {
 
                       <p className="mt-3 line-clamp-3 text-sm font-semibold leading-7 text-slate-500">
                         {getAnnonceDescription(annonce) ||
-                          "Prestation proposée par un intervenant Gotfit."}
+                          (isClientRequest(annonce)
+                            ? "Un client Gotfit recherche un accompagnement adapté."
+                            : "Prestation proposée par un intervenant Gotfit.")}
                       </p>
 
                       <div className="mt-5 grid gap-2 text-xs font-bold text-slate-500">
@@ -285,12 +333,12 @@ export default function AnnoncesPage() {
                         </span>
                         <span className="inline-flex items-center gap-2">
                           <Clock3 size={15} />
-                          {annonce.duration || 60} min
+                          {annonce.duration || 60} min{isClientRequest(annonce) ? " souhaitées" : ""}
                         </span>
                       </div>
 
                       <div className="mt-6 inline-flex items-center gap-2 text-sm font-black text-orange-700">
-                        Voir et réserver
+                        {isClientRequest(annonce) ? "Voir la demande" : "Voir et réserver"}
                         <ArrowRight
                           size={17}
                           className="transition group-hover:translate-x-1"

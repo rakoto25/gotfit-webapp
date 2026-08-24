@@ -6,11 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BadgeCheck,
-  CalendarCheck,
   CheckCircle2,
   Loader2,
   Plus,
-  Save,
   ShieldCheck,
   Trash2,
   UserRound,
@@ -19,18 +17,24 @@ import {
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { getCurrentUser, getToken } from "@/lib/auth";
+import { getCurrentUser, getToken, isCoach } from "@/lib/auth";
 import {
   createClientNote,
   deleteClientNote,
   fetchClientHistory,
   fetchClientNotes,
   fetchClientOnboarding,
+  fetchAssignableCoaches,
   type ClientNote,
   type ClientOnboarding,
   type ClientHistory,
 } from "@/lib/client-journey";
-import { formatDate, formatMoney, getAnnonceTitle } from "@/lib/marketplace";
+import {
+  formatDate,
+  formatMoney,
+  getAnnonceTitle,
+  type GotfitUser,
+} from "@/lib/marketplace";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "Non défini";
@@ -69,6 +73,7 @@ export default function ClientJourneyDetailPage() {
   const [history, setHistory] = useState<ClientHistory | null>(null);
   const [notes, setNotes] = useState<ClientNote[]>([]);
   const [onboarding, setOnboarding] = useState<ClientOnboarding | null>(null);
+  const [coaches, setCoaches] = useState<GotfitUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -77,6 +82,7 @@ export default function ClientJourneyDetailPage() {
 
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
+  const [noteIntervenantId, setNoteIntervenantId] = useState("");
   const [noteVisibility, setNoteVisibility] = useState<"private" | "shared">(
     "private"
   );
@@ -100,15 +106,20 @@ export default function ClientJourneyDetailPage() {
       setLoading(true);
       setError("");
 
-      const [historyPayload, notesPayload, onboardingPayload] = await Promise.all([
+      const [historyPayload, notesPayload, onboardingPayload, coachesPayload] = await Promise.all([
         fetchClientHistory(clientId),
         fetchClientNotes(clientId),
         fetchClientOnboarding(clientId),
+        fetchAssignableCoaches(),
       ]);
 
       setHistory(historyPayload);
       setNotes(notesPayload);
       setOnboarding(onboardingPayload);
+      setCoaches(coachesPayload);
+      if (currentUser && isCoach(currentUser)) {
+        setNoteIntervenantId(String(currentUser.id));
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Impossible de charger le dossier client."
@@ -136,10 +147,16 @@ export default function ClientJourneyDetailPage() {
         title: noteTitle.trim() || undefined,
         content: noteContent.trim(),
         visibility: noteVisibility,
+        intervenant_id: noteIntervenantId
+          ? Number(noteIntervenantId)
+          : null,
       });
 
       setNoteTitle("");
       setNoteContent("");
+      setNoteIntervenantId(
+        currentUser && isCoach(currentUser) ? String(currentUser.id) : ""
+      );
       setNoteVisibility("private");
       setSuccess("Note enregistrée avec succès.");
       await loadData();
@@ -334,6 +351,23 @@ export default function ClientJourneyDetailPage() {
                     />
 
                     <select
+                      value={noteIntervenantId}
+                      onChange={(event) => setNoteIntervenantId(event.target.value)}
+                      className="gotfit-input"
+                      aria-label="Coach assigné à la note"
+                    >
+                      <option value="">Aucun coach assigné</option>
+                      {(currentUser && isCoach(currentUser)
+                        ? [{ id: currentUser.id, name: currentUser.name }]
+                        : coaches
+                      ).map((coach) => (
+                        <option key={coach.id} value={coach.id}>
+                          {coach.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
                       value={noteVisibility}
                       onChange={(event) =>
                         setNoteVisibility(event.target.value as "private" | "shared")
@@ -416,6 +450,13 @@ export default function ClientJourneyDetailPage() {
                           <p className="whitespace-pre-line text-sm font-semibold leading-7 text-slate-600">
                             {note.content}
                           </p>
+
+                          {note.intervenant?.name && (
+                            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-black text-orange-700">
+                              <UserRound size={14} />
+                              Assignée à {note.intervenant.name}
+                            </div>
+                          )}
 
                           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
                             <BadgeCheck size={14} />

@@ -9,6 +9,7 @@ import {
   Clock3,
   CreditCard,
   Loader2,
+  Megaphone,
   MessageCircle,
   RefreshCw,
   ShieldCheck,
@@ -29,8 +30,6 @@ import {
   canAddReservationToCalendar,
   downloadReservationCalendar,
   getReservationVisioHref,
-  canAccessReservationVisio,
-  isReservationOnline,
   isReservationPaid,
   type Reservation,
 } from "@/lib/marketplace";
@@ -95,7 +94,7 @@ export default function ClientDashboardPage() {
   }, [reservations]);
 
   const upcomingVisios = useMemo(() => {
-    const now = Date.now();
+    const now = new Date().getTime();
     const linkedSessionIds = new Set(
       reservations
         .filter(isReservationPaid)
@@ -204,9 +203,10 @@ export default function ClientDashboardPage() {
             </div>
           </section>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             {[
               ["/annonces", Sparkles, "Réserver", "Trouver une prestation"],
+              ["/annonces/nouvelle", Megaphone, "Publier", "Rechercher un coach"],
               ["/reservations", CreditCard, "Paiements", "Suivre mes réservations"],
               ["/planning", CalendarCheck, "Planning", "Voir mes rendez-vous"],
               ["/visio", Video, "Visio", "Rejoindre une séance"],

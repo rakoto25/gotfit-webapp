@@ -13,9 +13,11 @@ import {
   CreditCard,
   Loader2,
   MapPin,
+  MessageCircle,
   ShieldCheck,
   Sparkles,
   UserRound,
+  UserSearch,
   Users,
   Wifi,
   X,
@@ -23,7 +25,7 @@ import {
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { getToken } from "@/lib/auth";
+import { getCurrentUser, getToken } from "@/lib/auth";
 import {
   Annonce,
   PaymentIntentPayload,
@@ -41,12 +43,26 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY)
   : null;
 
-function getCoachName(annonce: Annonce | null) {
+function isClientRequest(annonce: Annonce | null) {
+  return annonce?.announcement_type === "client_request";
+}
+
+function getPublisherName(annonce: Annonce | null) {
   return (
     annonce?.intervenant?.name ||
     annonce?.user?.name ||
     "Intervenant Gotfit"
   );
+}
+
+function getPriceLabel(annonce: Annonce | null) {
+  if (isClientRequest(annonce)) {
+    return Number(annonce?.price || 0) > 0
+      ? `Budget ${formatMoney(annonce?.price)}`
+      : "Budget à discuter";
+  }
+
+  return formatMoney(annonce?.price);
 }
 
 function getLocation(annonce: Annonce | null) {
@@ -157,11 +173,13 @@ export default function AnnonceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const image = useMemo(() => getImage(annonce), [annonce]);
 
   useEffect(() => {
     async function loadAnnonce() {
+      setCurrentUserId(getCurrentUser()?.id || null);
       try {
         setLoading(true);
         setError("");
@@ -260,13 +278,20 @@ export default function AnnonceDetailPage() {
                   <div className="absolute left-5 top-5 rounded-full bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-orange-700 shadow-sm">
                     {annonce.category || "Coaching"}
                   </div>
+
+                  {isClientRequest(annonce) && (
+                    <div className="absolute right-5 top-5 inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white shadow-sm">
+                      <UserSearch size={15} />
+                      Recherche de coach
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-6 sm:p-8">
                   <div className="mb-5 flex flex-wrap items-center gap-3 text-sm font-bold text-slate-500">
                     <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-4 py-2">
                       <UserRound size={16} />
-                      {getCoachName(annonce)}
+                      {isClientRequest(annonce) ? "Client" : "Coach"} · {getPublisherName(annonce)}
                     </span>
                     <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-4 py-2">
                       <MapPin size={16} />
@@ -290,9 +315,30 @@ export default function AnnonceDetailPage() {
 
                   <p className="mt-5 text-base font-semibold leading-8 text-slate-600">
                     {getAnnonceDescription(annonce) ||
-                      "Cette prestation est proposée par un intervenant Gotfit validé."}
+                      (isClientRequest(annonce)
+                        ? "Ce client Gotfit recherche un coach pour l’accompagner."
+                        : "Cette prestation est proposée par un intervenant Gotfit validé.")}
                   </p>
 
+                  {isClientRequest(annonce) ? (
+                    <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                      <div className="rounded-[1.5rem] bg-orange-50 p-5">
+                        <UserSearch className="mb-3 text-orange-700" size={24} />
+                        <strong className="block text-sm font-black">Besoin client</strong>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Une demande publiée directement par un membre Gotfit.</p>
+                      </div>
+                      <div className="rounded-[1.5rem] bg-orange-50 p-5">
+                        <MessageCircle className="mb-3 text-orange-700" size={24} />
+                        <strong className="block text-sm font-black">Contact direct</strong>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Les coachs peuvent proposer leur accompagnement par message.</p>
+                      </div>
+                      <div className="rounded-[1.5rem] bg-orange-50 p-5">
+                        <BadgeCheck className="mb-3 text-orange-700" size={24} />
+                        <strong className="block text-sm font-black">Annonce modérée</strong>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">La demande est publiée après validation Gotfit.</p>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="mt-8 grid gap-4 sm:grid-cols-3">
                     <div className="rounded-[1.5rem] bg-orange-50 p-5">
                       <ShieldCheck className="mb-3 text-orange-700" size={24} />
@@ -324,10 +370,51 @@ export default function AnnonceDetailPage() {
                       </p>
                     </div>
                   </div>
+                  )}
                 </div>
               </section>
 
               <aside className="h-fit rounded-[2.5rem] bg-white p-5 shadow-[0_24px_80px_rgba(249,115,22,0.14)] sm:p-6 lg:sticky lg:top-28">
+                {isClientRequest(annonce) && (
+                  <div className="grid gap-5">
+                    <div className="rounded-[1.7rem] bg-slate-950 p-5 text-white">
+                      <span className="text-xs font-black uppercase tracking-[0.16em] text-orange-200">
+                        Budget indicatif
+                      </span>
+                      <strong className="mt-1 block text-3xl font-black">
+                        {getPriceLabel(annonce)}
+                      </strong>
+                      <p className="mt-2 text-xs font-semibold leading-5 text-white/55">
+                        Les conditions peuvent être précisées directement avec le client.
+                      </p>
+                    </div>
+
+                    {currentUserId === annonce.user_id ? (
+                      <div className="rounded-[1.5rem] border border-orange-100 bg-orange-50 p-5 text-sm font-bold leading-6 text-orange-800">
+                        C’est votre annonce. Les coachs intéressés peuvent vous contacter dans votre messagerie.
+                      </div>
+                    ) : (
+                      <Link
+                        href={
+                          currentUserId
+                            ? `/messages?user_id=${annonce.user_id}`
+                            : `/auth/login?redirect=${encodeURIComponent(`/annonces/${annonce.id}`)}`
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700"
+                      >
+                        <MessageCircle size={18} />
+                        {currentUserId ? "Contacter le client" : "Se connecter pour répondre"}
+                      </Link>
+                    )}
+
+                    <p className="text-center text-xs font-semibold leading-5 text-slate-500">
+                      Cette annonce est une recherche de coach et ne déclenche aucun paiement automatique.
+                    </p>
+                  </div>
+                )}
+
+                {!isClientRequest(annonce) && (
+                  <>
                 <div className="mb-5 rounded-[1.7rem] bg-slate-950 p-5 text-white">
                   <span className="text-xs font-black uppercase tracking-[0.16em] text-orange-200">
                     Prix prestation
@@ -447,6 +534,8 @@ export default function AnnonceDetailPage() {
                       </Elements>
                     )}
                   </div>
+                )}
+                  </>
                 )}
               </aside>
             </div>

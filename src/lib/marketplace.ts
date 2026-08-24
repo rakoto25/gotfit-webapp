@@ -60,6 +60,7 @@ export type Annonce = {
   image?: string | null;
   image_url?: string | null;
   status?: string | null;
+  announcement_type?: "coach_service" | "client_request" | string | null;
   user_id?: number | null;
   intervenant?: GotfitUser | null;
   user?: GotfitUser | null;
