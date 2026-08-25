@@ -185,7 +185,7 @@ export default function AnnoncesPage() {
                 <div className="rounded-[1.4rem] bg-white p-5">
                   <CalendarCheck className="mb-3 text-orange-700" size={24} />
                   <strong className="block text-sm font-black">
-                    Litige possible
+                    Payement differé
                   </strong>
                   <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
                     Le reversement peut être bloqué en cas de souci.
