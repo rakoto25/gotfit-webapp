@@ -8,7 +8,6 @@ import {
   Euro,
   ImagePlus,
   Loader2,
-  MapPin,
   MonitorPlay,
   Send,
   Sparkles,
@@ -68,8 +67,6 @@ export default function NewClientAnnoncePage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
-  const [format, setFormat] = useState<"presentiel" | "visio">("presentiel");
-  const [city, setCity] = useState("");
   const [budget, setBudget] = useState("");
   const [duration, setDuration] = useState("60");
   const [availability, setAvailability] = useState("");
@@ -163,11 +160,6 @@ export default function NewClientAnnoncePage() {
       return;
     }
 
-    if (format === "presentiel" && !city.trim()) {
-      setError("Indiquez la ville dans laquelle vous recherchez un coach.");
-      return;
-    }
-
     if (budget && (!Number.isFinite(Number(budget)) || Number(budget) < 0)) {
       setError("Indiquez un budget valide ou laissez le champ vide.");
       return;
@@ -177,15 +169,12 @@ export default function NewClientAnnoncePage() {
     formData.append("titre", title.trim());
     formData.append("contenu", description.trim());
     formData.append("category", category);
-    formData.append("type_prestation", format);
-    formData.append("is_online", format === "visio" ? "1" : "0");
+    formData.append("type_prestation", "visio");
+    formData.append("is_online", "1");
+    formData.append("location", "Visio GotFit");
     formData.append("duration", String(Math.max(15, Number(duration) || 60)));
 
     if (budget) formData.append("price", Number(budget).toFixed(2));
-    if (city.trim()) {
-      formData.append("city", city.trim());
-      formData.append("location", city.trim());
-    }
     selectedDays.forEach((day) => formData.append("available_days[]", day));
     if (availability.trim()) {
       formData.append("available_hours[]", availability.trim());
@@ -294,42 +283,15 @@ export default function NewClientAnnoncePage() {
                     />
                   </label>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setFormat("presentiel")}
-                      className={`flex items-center gap-3 rounded-2xl border p-4 text-left text-sm font-black ${
-                        format === "presentiel"
-                          ? "border-orange-600 bg-orange-50 text-orange-700"
-                          : "border-slate-200"
-                      }`}
-                    >
-                      <MapPin size={20} /> En présentiel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormat("visio")}
-                      className={`flex items-center gap-3 rounded-2xl border p-4 text-left text-sm font-black ${
-                        format === "visio"
-                          ? "border-orange-600 bg-orange-50 text-orange-700"
-                          : "border-slate-200"
-                      }`}
-                    >
-                      <MonitorPlay size={20} /> En visio
-                    </button>
+                  <div className="flex items-start gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
+                    <MonitorPlay className="mt-0.5 shrink-0" size={20} />
+                    <div>
+                      <p className="font-black">Accompagnement 100 % en visio</p>
+                      <p className="mt-1 font-semibold text-orange-800">
+                        Toutes les séances GotFit se déroulent directement dans la salle vidéo sécurisée de la webapp.
+                      </p>
+                    </div>
                   </div>
-
-                  {format === "presentiel" && (
-                    <label>
-                      <span className="mb-2 block text-sm font-black">Ville</span>
-                      <input
-                        value={city}
-                        onChange={(event) => setCity(event.target.value)}
-                        className="gotfit-input"
-                        placeholder="Ex. Lyon"
-                      />
-                    </label>
-                  )}
 
                   <div className="grid gap-5 sm:grid-cols-2">
                     <label>

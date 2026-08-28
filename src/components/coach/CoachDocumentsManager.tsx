@@ -1642,19 +1642,22 @@ export default function CoachDocumentsManager({
     );
 
   useEffect(() => {
-    if (!autoLoad) {
-      setStatus("ready");
-      return;
-    }
-
     const controller =
       new AbortController();
 
-    void loadDocuments({
-      signal: controller.signal,
-    });
+    const timer = window.setTimeout(() => {
+      if (!autoLoad) {
+        setStatus("ready");
+        return;
+      }
+
+      void loadDocuments({
+        signal: controller.signal,
+      });
+    }, 0);
 
     return () => {
+      window.clearTimeout(timer);
       controller.abort();
     };
   }, [autoLoad, loadDocuments]);
@@ -1667,12 +1670,16 @@ export default function CoachDocumentsManager({
       return;
     }
 
-    const normalized =
-      normalizeDocuments(
-        initialDocuments,
-      );
+    const timer = window.setTimeout(() => {
+      const normalized =
+        normalizeDocuments(
+          initialDocuments,
+        );
 
-    setDocuments(normalized);
+      setDocuments(normalized);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [initialDocuments]);
 
   const addFiles =

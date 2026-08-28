@@ -219,20 +219,22 @@ function getParticipantRoleLabel(
   return "Coaché";
 }
 
-function getRoleIcon(
-  role: unknown,
-) {
+function ParticipantRoleIcon({
+  role,
+}: {
+  role: unknown;
+}) {
   if (isCoachRole(role)) {
-    return ShieldCheck;
+    return <ShieldCheck size={14} className="shrink-0 text-orange-700" />;
   }
 
   if (
     isAdministratorRole(role)
   ) {
-    return CircleUserRound;
+    return <CircleUserRound size={14} className="shrink-0 text-orange-700" />;
   }
 
-  return UserRound;
+  return <UserRound size={14} className="shrink-0 text-orange-700" />;
 }
 
 function getStatusClass(
@@ -359,11 +361,6 @@ export default function ParticipantCard({
         onMarkPaid,
     );
 
-  const RoleIcon =
-    getRoleIcon(
-      participant.role,
-    );
-
   const participantName =
     getParticipantName(
       participant,
@@ -428,10 +425,7 @@ export default function ParticipantCard({
           </div>
 
           <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-500">
-            <RoleIcon
-              size={14}
-              className="shrink-0 text-orange-700"
-            />
+            <ParticipantRoleIcon role={participant.role} />
 
             <span>
               {roleLabel}

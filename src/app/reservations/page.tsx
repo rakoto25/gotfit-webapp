@@ -38,6 +38,7 @@ import {
   canAccessReservationVisio,
   isReservationOnline,
   isReservationPaid,
+  syncPaymentStatus,
 } from "@/lib/marketplace";
 
 const statusLabels: Record<string, string> = {
@@ -160,11 +161,70 @@ export default function ReservationsPage() {
   }
 
   useEffect(() => {
+    let cancelled = false;
+
     const timer = window.setTimeout(() => {
-      loadReservations();
+      void (async () => {
+        const params = new URLSearchParams(window.location.search);
+        const paymentState = params.get("payment");
+        const paymentIntentId = params.get("payment_intent");
+
+        try {
+          if (paymentState === "success" && paymentIntentId) {
+            const result = await syncPaymentStatus(paymentIntentId);
+
+            if (cancelled) return;
+
+            if (result.payment_status === "succeeded") {
+              setSuccess(
+                "Paiement confirmé. Votre réservation et votre accès visio sont prêts."
+              );
+            } else if (result.payment_status === "processing") {
+              setSuccess(
+                "Paiement en cours de confirmation. Le statut sera actualisé dès validation par Stripe."
+              );
+            } else {
+              setError(
+                "Le paiement n’est pas encore confirmé. Vous pouvez réessayer depuis votre réservation."
+              );
+            }
+          } else if (paymentState === "succeeded") {
+            setSuccess(
+              "Paiement confirmé. Votre réservation et votre accès visio sont prêts."
+            );
+          } else if (paymentState === "processing") {
+            setSuccess(
+              "Paiement en cours de confirmation. Le statut sera mis à jour automatiquement."
+            );
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setError(
+              getErrorMessage(
+                err,
+                "Le paiement a été renvoyé par Stripe, mais sa vérification a échoué. Actualisez la page pour réessayer."
+              )
+            );
+          }
+        } finally {
+          if (!cancelled) {
+            await loadReservations();
+
+            const cleanUrl = `${window.location.pathname}${
+              params.get("reservation")
+                ? `?reservation=${encodeURIComponent(params.get("reservation") || "")}`
+                : ""
+            }`;
+            window.history.replaceState({}, "", cleanUrl);
+          }
+        }
+      })();
     }, 0);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
 

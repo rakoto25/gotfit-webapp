@@ -11,7 +11,6 @@ import {
   ImageIcon,
   Info,
   Loader2,
-  MapPin,
   MonitorPlay,
   Plus,
   Send,
@@ -19,7 +18,6 @@ import {
   Sparkles,
   Trash2,
   Upload,
-  UsersRound,
   X,
 } from "lucide-react";
 import {
@@ -40,8 +38,6 @@ import {
 } from "@/lib/auth";
 import { createAnnonce } from "@/lib/marketplace";
 
-type SessionFormat = "presentiel" | "visio";
-
 type TimeSlot = {
   id: number;
   start: string;
@@ -55,8 +51,6 @@ type FormErrors = Partial<
     | "category"
     | "price"
     | "duration"
-    | "city"
-    | "address"
     | "days"
     | "slots"
     | "image",
@@ -151,12 +145,8 @@ export default function NewCoachAnnoncePage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
-  const [format, setFormat] = useState<SessionFormat>("presentiel");
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("60");
-  const [city, setCity] = useState("");
-  const [address, setAddress] = useState("");
-  const [location, setLocation] = useState("");
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [slots, setSlots] = useState<TimeSlot[]>([
     { id: 1, start: "09:00", end: "12:00" },
@@ -209,12 +199,11 @@ export default function NewCoachAnnoncePage() {
       Number(duration) >= 15,
       selectedDays.length > 0,
       slots.some((slot) => slot.start && slot.end && slot.end > slot.start),
-      format === "visio" || (Boolean(city.trim()) && Boolean(address.trim())),
       Boolean(image),
     ];
 
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }, [address, category, city, description, duration, format, image, price, selectedDays, slots, title]);
+  }, [category, description, duration, image, price, selectedDays, slots, title]);
 
   const validSlots = useMemo(
     () =>
@@ -321,14 +310,6 @@ export default function NewCoachAnnoncePage() {
       nextErrors.duration = "La durée doit être comprise entre 15 et 480 minutes.";
     }
 
-    if (format === "presentiel" && !city.trim()) {
-      nextErrors.city = "Indiquez la ville de la séance.";
-    }
-
-    if (format === "presentiel" && !address.trim()) {
-      nextErrors.address = "Indiquez l’adresse de la séance.";
-    }
-
     if (selectedDays.length === 0) {
       nextErrors.days = "Sélectionnez au moins un jour disponible.";
     }
@@ -369,18 +350,11 @@ export default function NewCoachAnnoncePage() {
     formData.append("titre", title.trim());
     formData.append("contenu", description.trim());
     formData.append("category", category);
-    formData.append("type_prestation", format);
+    formData.append("type_prestation", "visio");
     formData.append("price", Number(price).toFixed(2));
     formData.append("duration", String(Number(duration)));
-    formData.append("is_online", format === "visio" ? "1" : "0");
-
-    if (format === "visio") {
-      formData.append("location", "Séance en ligne Gotfit");
-    } else {
-      formData.append("location", location.trim() || address.trim());
-      formData.append("city", city.trim());
-      formData.append("address", address.trim());
-    }
+    formData.append("is_online", "1");
+    formData.append("location", "Visio GotFit");
 
     selectedDays.forEach((day) => formData.append("available_days[]", day));
     validSlots.forEach((slot) =>
@@ -410,12 +384,8 @@ export default function NewCoachAnnoncePage() {
     setTitle("");
     setDescription("");
     setCategory("");
-    setFormat("presentiel");
     setPrice("");
     setDuration("60");
-    setCity("");
-    setAddress("");
-    setLocation("");
     setSelectedDays([]);
     setSlots([{ id: nextSlotId.current++, start: "09:00", end: "12:00" }]);
     removeImage();
@@ -572,37 +542,9 @@ export default function NewCoachAnnoncePage() {
 
                       <div>
                         <FieldLabel>Format de la séance</FieldLabel>
-                        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Format de la séance">
-                          {([
-                            { value: "presentiel" as const, label: "Présentiel", icon: UsersRound },
-                            { value: "visio" as const, label: "En visio", icon: MonitorPlay },
-                          ]).map(({ value, label, icon: Icon }) => {
-                            const active = format === value;
-                            return (
-                              <button
-                                key={value}
-                                type="button"
-                                role="radio"
-                                aria-checked={active}
-                                onClick={() => {
-                                  setFormat(value);
-                                  setErrors((current) => ({
-                                    ...current,
-                                    city: undefined,
-                                    address: undefined,
-                                  }));
-                                }}
-                                className={`flex min-h-12 items-center justify-center gap-2 border px-3 text-sm font-black transition ${
-                                  active
-                                    ? "border-[var(--ink)] bg-[var(--ink)] text-white"
-                                    : "border-slate-200 bg-white text-slate-600 hover:border-[var(--brand)]"
-                                }`}
-                              >
-                                <Icon size={18} />
-                                {label}
-                              </button>
-                            );
-                          })}
+                        <div className="flex min-h-12 items-center gap-3 border border-orange-200 bg-orange-50 px-4 text-sm font-black text-orange-800">
+                          <MonitorPlay size={18} />
+                          100 % visio dans GotFit
                         </div>
                       </div>
 
@@ -694,76 +636,10 @@ export default function NewCoachAnnoncePage() {
                     </div>
                   </section>
 
-                  {format === "presentiel" && (
-                    <section aria-labelledby="section-lieu">
-                      <div className="flex items-start gap-4 border-b border-[var(--line)] pb-4">
-                        <span className="grid h-10 w-10 shrink-0 place-items-center bg-[var(--ink)] text-sm font-black text-white">
-                          03
-                        </span>
-                        <div>
-                          <h2 id="section-lieu" className="text-xl font-black text-[var(--ink)]">
-                            Lieu de la séance
-                          </h2>
-                          <p className="mt-1 text-sm text-slate-500">
-                            L’adresse permet au client de préparer son déplacement.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                        <label>
-                          <FieldLabel>Ville</FieldLabel>
-                          <input
-                            value={city}
-                            onChange={(event) => {
-                              setCity(event.target.value);
-                              updateFieldError("city");
-                            }}
-                            maxLength={100}
-                            className="gotfit-input"
-                            placeholder="Ex. Lyon"
-                            aria-invalid={Boolean(errors.city)}
-                          />
-                          <FieldError>{errors.city}</FieldError>
-                        </label>
-
-                        <label>
-                          <FieldLabel optional>Nom du lieu</FieldLabel>
-                          <input
-                            value={location}
-                            onChange={(event) => setLocation(event.target.value)}
-                            maxLength={255}
-                            className="gotfit-input"
-                            placeholder="Ex. Studio Gotfit Centre"
-                          />
-                        </label>
-
-                        <label className="sm:col-span-2">
-                          <FieldLabel>Adresse complète</FieldLabel>
-                          <div className="relative">
-                            <MapPin className="pointer-events-none absolute left-4 top-4 text-slate-400" size={18} />
-                            <input
-                              value={address}
-                              onChange={(event) => {
-                                setAddress(event.target.value);
-                                updateFieldError("address");
-                              }}
-                              maxLength={255}
-                              className="gotfit-input pl-11"
-                              placeholder="12 rue des Sports, 69002 Lyon"
-                              aria-invalid={Boolean(errors.address)}
-                            />
-                          </div>
-                          <FieldError>{errors.address}</FieldError>
-                        </label>
-                      </div>
-                    </section>
-                  )}
-
                   <section aria-labelledby="section-disponibilites">
                     <div className="flex items-start gap-4 border-b border-[var(--line)] pb-4">
                       <span className="grid h-10 w-10 shrink-0 place-items-center bg-[var(--ink)] text-sm font-black text-white">
-                        {format === "presentiel" ? "04" : "03"}
+                        03
                       </span>
                       <div>
                         <h2 id="section-disponibilites" className="text-xl font-black text-[var(--ink)]">
@@ -858,7 +734,7 @@ export default function NewCoachAnnoncePage() {
                   <section aria-labelledby="section-image">
                     <div className="flex items-start gap-4 border-b border-[var(--line)] pb-4">
                       <span className="grid h-10 w-10 shrink-0 place-items-center bg-[var(--ink)] text-sm font-black text-white">
-                        {format === "presentiel" ? "05" : "04"}
+                        04
                       </span>
                       <div>
                         <h2 id="section-image" className="text-xl font-black text-[var(--ink)]">
@@ -972,8 +848,8 @@ export default function NewCoachAnnoncePage() {
                         {category || "Votre catégorie"}
                       </span>
                       <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-500">
-                        {format === "visio" ? <MonitorPlay size={14} /> : <MapPin size={14} />}
-                        {format === "visio" ? "Visio" : city || "Votre ville"}
+                        <MonitorPlay size={14} />
+                        Visio GotFit
                       </span>
                     </div>
                     <h2 className="mt-3 break-words text-lg font-black leading-snug text-[var(--ink)]">

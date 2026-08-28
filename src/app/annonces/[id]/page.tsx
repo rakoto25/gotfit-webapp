@@ -65,9 +65,8 @@ function getPriceLabel(annonce: Annonce | null) {
   return formatMoney(annonce?.price);
 }
 
-function getLocation(annonce: Annonce | null) {
-  if (annonce?.is_online) return "Séance en ligne";
-  return annonce?.city || annonce?.location || annonce?.address || "Lieu à confirmer";
+function getLocation(_annonce: Annonce | null) {
+  return "Visio GotFit";
 }
 
 function getImage(annonce: Annonce | null) {

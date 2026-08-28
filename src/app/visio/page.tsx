@@ -69,7 +69,7 @@ const DEFAULT_DURATION_MINUTES = 60;
 const MIN_DURATION_MINUTES = 15;
 const MAX_DURATION_MINUTES = 360;
 
-const DEFAULT_PRICE = 25;
+const DEFAULT_PRICE = 0;
 const DEFAULT_CURRENCY = "EUR";
 
 /**
@@ -545,15 +545,11 @@ export default function VisioPage() {
       setAuthReady(true);
     }
 
-    synchronizeAuthentication();
-
-    setForm(
-      createInitialForm(),
-    );
-
-    setMinimumStartDate(
-      getMinimumStartDate(),
-    );
+    const timer = window.setTimeout(() => {
+      synchronizeAuthentication();
+      setForm(createInitialForm());
+      setMinimumStartDate(getMinimumStartDate());
+    }, 0);
 
     window.addEventListener(
       "gotfit:auth",
@@ -566,6 +562,7 @@ export default function VisioPage() {
     );
 
     return () => {
+      window.clearTimeout(timer);
       window.removeEventListener(
         "gotfit:auth",
         synchronizeAuthentication,
@@ -668,7 +665,11 @@ export default function VisioPage() {
     }, []);
 
   useEffect(() => {
-    void loadSessions();
+    const timer = window.setTimeout(() => {
+      void loadSessions();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadSessions]);
 
   /* =======================================================
@@ -1313,64 +1314,14 @@ export default function VisioPage() {
                   </div>
                 </div>
 
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  Prix par coaché
+                <div className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2">
+                  Paiement
 
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.price}
-                    onChange={(event) => {
-                      setForm(
-                        (current) => ({
-                          ...current,
-
-                          price:
-                            event.target
-                              .value === ""
-                              ? 0
-                              : Number(
-                                  event
-                                    .target
-                                    .value,
-                                ),
-                        }),
-                      );
-                    }}
-                    className="gotfit-input"
-                    required
-                  />
-                </label>
-
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  Devise
-
-                  <input
-                    type="text"
-                    value={form.currency}
-                    maxLength={3}
-                    minLength={3}
-                    pattern="[A-Za-z]{3}"
-                    onChange={(event) => {
-                      setForm(
-                        (current) => ({
-                          ...current,
-
-                          currency:
-                            normalizeCurrency(
-                              event.target
-                                .value,
-                            ),
-                        }),
-                      );
-                    }}
-                    className="gotfit-input uppercase"
-                    placeholder="EUR"
-                    autoComplete="off"
-                    required
-                  />
-                </label>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold leading-6 text-emerald-800">
+                    Cette séance créée directement dans l’espace Visio est gratuite.
+                    Pour une séance payante, publiez une annonce : Stripe encaisse la réservation puis GotFit crée automatiquement la salle visio privée.
+                  </div>
+                </div>
               </div>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1552,11 +1503,12 @@ export default function VisioPage() {
 
                       <div className="mt-5 flex items-center justify-between gap-3">
                         <span className="text-lg font-black text-slate-950">
-                          {formatMoney(
-                            session.price,
-                            session.currency ||
-                              DEFAULT_CURRENCY,
-                          )}
+                          {Number(session.price || 0) <= 0
+                            ? "Gratuit"
+                            : formatMoney(
+                                session.price,
+                                session.currency || DEFAULT_CURRENCY,
+                              )}
                         </span>
 
                         <span className="inline-flex items-center gap-2 text-sm font-black text-orange-700">

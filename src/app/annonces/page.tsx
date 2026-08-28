@@ -52,9 +52,8 @@ function getAnnonceImage(annonce: Annonce) {
   return getAssetUrl(annonce.image_url || annonce.image);
 }
 
-function getLocation(annonce: Annonce) {
-  if (annonce.is_online) return "En ligne";
-  return annonce.city || annonce.location || annonce.address || "Lieu à confirmer";
+function getLocation(_annonce: Annonce) {
+  return "Visio GotFit";
 }
 
 function isVisibleAnnonce(annonce: Annonce) {

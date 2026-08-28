@@ -571,9 +571,11 @@ export default function IntervenantProfilePage() {
     const controller =
       new AbortController();
 
-    void loadProfile(
-      controller.signal,
-    );
+    const timer = window.setTimeout(() => {
+      void loadProfile(
+        controller.signal,
+      );
+    }, 0);
 
     /*
      * Recharge le profil lorsque la session Gotfit
@@ -594,6 +596,7 @@ export default function IntervenantProfilePage() {
     );
 
     return () => {
+      window.clearTimeout(timer);
       controller.abort();
 
       window.removeEventListener(

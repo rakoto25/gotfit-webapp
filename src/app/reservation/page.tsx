@@ -35,10 +35,12 @@ import {
   createPaymentIntent,
   fetchAnnonce,
   fetchAnnonces,
+  formatMinorMoney,
   formatMoney,
   getAnnonceDescription,
   getAnnonceTitle,
   reserveAnnonce,
+  syncPaymentStatus,
 } from "@/lib/marketplace";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_KEY
@@ -62,10 +64,8 @@ function getCoachName(annonce?: Annonce | null) {
   return annonce?.intervenant?.name || annonce?.user?.name || "Intervenant Gotfit";
 }
 
-function getLocation(annonce?: Annonce | null) {
-  if (annonce?.is_online) return "Séance en ligne";
-
-  return annonce?.city || annonce?.location || annonce?.address || "Lieu à confirmer";
+function getLocation(_annonce?: Annonce | null) {
+  return "Visio GotFit";
 }
 
 function getAnnonceOwnerId(annonce: Annonce) {
@@ -94,6 +94,7 @@ function CheckoutForm({
 }) {
   const stripe = useStripe();
   const elements = useElements();
+  const router = useRouter();
 
   const [processing, setProcessing] = useState(false);
   const [elementReady, setElementReady] = useState(false);
@@ -140,6 +141,7 @@ function CheckoutForm({
         confirmParams: {
           return_url: getPaymentReturnUrl(reservation.id),
         },
+        redirect: "if_required",
       });
 
       if (result.error) {
@@ -148,7 +150,37 @@ function CheckoutForm({
         return;
       }
 
-      setError("");
+      const confirmedIntent = result.paymentIntent;
+
+      if (!confirmedIntent) {
+        setError("Stripe n’a pas renvoyé le statut final du paiement.");
+        setProcessing(false);
+        return;
+      }
+
+      if (confirmedIntent.status === "succeeded") {
+        try {
+          await syncPaymentStatus(confirmedIntent.id);
+        } catch {
+          // Le webhook Stripe reste la source de secours si la synchronisation
+          // immédiate est momentanément indisponible.
+        }
+
+        router.replace(
+          `/reservations?payment=succeeded&reservation=${reservation.id}`
+        );
+        return;
+      }
+
+      if (confirmedIntent.status === "processing") {
+        router.replace(
+          `/reservations?payment=processing&reservation=${reservation.id}`
+        );
+        return;
+      }
+
+      setError("Le paiement nécessite une nouvelle vérification. Réessayez.");
+      setProcessing(false);
     } catch (err) {
       setError(getErrorMessage(err, "Impossible de finaliser le paiement."));
       setProcessing(false);
@@ -168,8 +200,17 @@ function CheckoutForm({
               Montant à payer
             </span>
             <strong className="mt-1 block text-3xl font-black text-slate-950">
-              {formatMoney(payment.amount, payment.currency)}
+              {formatMinorMoney(
+                payment.amount_in_cents ?? payment.amount,
+                payment.currency
+              )}
             </strong>
+            {Number(reservation.service_fee_amount || 0) > 0 && (
+              <span className="mt-2 block text-xs font-bold text-orange-800">
+                Prestation {formatMoney(reservation.price, payment.currency)} + frais de service{" "}
+                {formatMoney(reservation.service_fee_amount, payment.currency)}
+              </span>
+            )}
           </div>
           <CreditCard className="text-orange-700" size={28} />
         </div>
@@ -265,7 +306,7 @@ function ReservationContent() {
         },
       },
     };
-  }, [payment?.clientSecret]);
+  }, [payment]);
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -340,6 +381,13 @@ function ReservationContent() {
 
       if (!intent?.clientSecret) {
         throw new Error("Le client_secret Stripe est manquant dans la réponse API.");
+      }
+
+      if (intent.already_paid || intent.payment_status === "succeeded") {
+        router.replace(
+          `/reservations?payment=succeeded&reservation=${createdReservation.id}`
+        );
+        return;
       }
 
       setReservation(createdReservation);

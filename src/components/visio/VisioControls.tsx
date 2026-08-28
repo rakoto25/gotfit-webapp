@@ -14,6 +14,7 @@ export type VisioControlAction =
   | ""
   | "start"
   | "join"
+  | "reserve"
   | "end";
 
 type VisioControlsProps = {

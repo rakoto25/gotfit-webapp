@@ -33,6 +33,10 @@ type ClientCard = {
   onboarding?: ClientOnboarding | null;
 };
 
+type ClientWithOnboarding = GotfitUser & {
+  client_onboarding?: ClientOnboarding | null;
+};
+
 export default function ClientJourneyIndexPage() {
   const router = useRouter();
   const [clients, setClients] = useState<ClientCard[]>([]);
@@ -74,7 +78,7 @@ export default function ClientJourneyIndexPage() {
             grouped.set(client.id, {
               user: client,
               reservations: [reservation],
-              onboarding: (client as any).client_onboarding || null,
+              onboarding: (client as ClientWithOnboarding).client_onboarding || null,
             });
           }
         });

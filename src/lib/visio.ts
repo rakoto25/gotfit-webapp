@@ -1562,6 +1562,22 @@ export async function joinVisioSession(
 }
 
 /* =========================================================
+   SORTIE DE SALLE
+========================================================= */
+
+export async function leaveVisioSession(
+  id: ApiId,
+): Promise<void> {
+  await apiRequest<unknown>(
+    `/visio/sessions/${encodeURIComponent(String(id))}/leave`,
+    {
+      method: "POST",
+      auth: true,
+    },
+  );
+}
+
+/* =========================================================
    FIN DE SÉANCE
 ========================================================= */
 

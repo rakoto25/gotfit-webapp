@@ -127,8 +127,17 @@ export type PaymentIntentPayload = {
   client_secret?: string;
   payment_intent_id: string;
   amount: string | number;
+  amount_in_cents?: string | number;
+  amount_major?: string | number;
   currency: string;
+  payment_status?: string;
+  already_paid?: boolean;
   reservation: Reservation;
+};
+
+export type PaymentStatusPayload = {
+  payment_status: string;
+  reservation?: Reservation;
 };
 
 type RequestOptions = {
@@ -174,6 +183,18 @@ export function formatMoney(value?: string | number | null, currency = "EUR") {
     style: "currency",
     currency: currency.toUpperCase(),
   }).format(amount);
+}
+
+export function formatMinorMoney(
+  value?: string | number | null,
+  currency = "EUR"
+) {
+  if (value === null || value === undefined || value === "") return "0 €";
+
+  const amountInMinorUnits = Number(value);
+  if (Number.isNaN(amountInMinorUnits)) return `${value} €`;
+
+  return formatMoney(amountInMinorUnits / 100, currency);
 }
 
 export function formatDate(value?: string | null) {
@@ -361,6 +382,13 @@ export async function createPaymentIntent(reservationId: number) {
   return { ...payload, clientSecret };
 }
 
+export async function syncPaymentStatus(paymentIntentId: string) {
+  return apiRequest<PaymentStatusPayload>(
+    `/payment/status/${encodeURIComponent(paymentIntentId)}`,
+    { auth: true }
+  );
+}
+
 export async function reserveAndCreatePaymentIntent(
   annonceId: string | number,
   body: {
@@ -440,12 +468,9 @@ export function isReservationPaid(reservation: Reservation) {
   );
 }
 
-export function isReservationOnline(reservation: Reservation) {
-  const type = (reservation.annonce?.type_prestation || "").toLowerCase();
-  return Boolean(
-    reservation.annonce?.is_online ||
-    ["online", "en_ligne", "en ligne", "visio", "video"].includes(type)
-  );
+export function isReservationOnline(_reservation: Reservation) {
+  // GotFit fonctionne désormais exclusivement en visioconférence.
+  return true;
 }
 
 export function canAccessReservationVisio(reservation: Reservation) {
@@ -505,13 +530,9 @@ function createReservationIcs(reservation: Reservation) {
   }
 
   const title = getAnnonceTitle(reservation.annonce);
-  const online = Boolean(reservation.annonce?.is_online);
-  const location = online
-    ? "Séance en ligne Gotfit"
-    : reservation.annonce?.location || reservation.annonce?.address || reservation.annonce?.city || "Gotfit";
-  const description = online
-    ? "Retrouvez l’accès à la séance depuis votre espace Gotfit, rubrique Visio."
-    : "Réservation Gotfit confirmée.";
+  const location = "Visio GotFit";
+  const description =
+    "Retrouvez l’accès à la séance depuis votre espace GotFit, rubrique Visio.";
 
   return [
     "BEGIN:VCALENDAR",

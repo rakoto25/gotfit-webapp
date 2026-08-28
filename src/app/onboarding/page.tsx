@@ -154,29 +154,33 @@ export default function OnboardingPage() {
   ======================================================= */
 
   useEffect(() => {
-    const token = getToken();
-    const user = getCurrentUser();
+    const timer = window.setTimeout(() => {
+      const token = getToken();
+      const user = getCurrentUser();
 
-    if (!token || !user) {
-      router.replace(
-        LOGIN_REDIRECT_PATH,
-      );
+      if (!token || !user) {
+        router.replace(
+          LOGIN_REDIRECT_PATH,
+        );
 
-      return;
-    }
+        return;
+      }
 
-    if (!hasRole(user, "client")) {
-      setAccessDenied(true);
-      setError("");
-      setSuccess("");
-      setLoading(false);
+      if (!hasRole(user, "client")) {
+        setAccessDenied(true);
+        setError("");
+        setSuccess("");
+        setLoading(false);
 
-      return;
-    }
+        return;
+      }
 
-    setAccessDenied(false);
+      setAccessDenied(false);
 
-    void loadOnboarding();
+      void loadOnboarding();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [
     loadOnboarding,
     router,

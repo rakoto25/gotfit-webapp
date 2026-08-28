@@ -50,7 +50,6 @@ import {
 
 import {
   formatDate,
-  formatMoney,
 } from "@/lib/marketplace";
 
 import {
@@ -58,6 +57,8 @@ import {
   fetchVisioSession,
   getVisioStatusLabel,
   joinVisioSession,
+  leaveVisioSession,
+  reserveVisioSession,
   startVisioSession,
   VISIO_MAX_COACHEES,
   VISIO_MAX_TOTAL_PARTICIPANTS,
@@ -68,8 +69,6 @@ import {
 /* =========================================================
    CONFIGURATION
 ========================================================= */
-
-const DEFAULT_CURRENCY = "EUR";
 
 const COACH_ROLES = [
   "coach",
@@ -99,6 +98,7 @@ const AUTHORIZED_PARTICIPANT_STATUSES = [
   "accepted",
   "approved",
   "joined",
+  "left",
   "present",
   "paid",
 ];
@@ -475,12 +475,16 @@ export default function VisioDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (
-      authReady &&
-      !authToken
-    ) {
-      setCredentials(null);
-    }
+    const timer = window.setTimeout(() => {
+      if (
+        authReady &&
+        !authToken
+      ) {
+        setCredentials(null);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [
     authReady,
     authToken,
@@ -557,9 +561,13 @@ export default function VisioDetailPage() {
     ]);
 
   useEffect(() => {
-    if (authReady) {
-      void loadSession();
-    }
+    const timer = window.setTimeout(() => {
+      if (authReady) {
+        void loadSession();
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [
     authReady,
     loadSession,
@@ -576,9 +584,7 @@ export default function VisioDetailPage() {
       )
         ? session.participants
         : [];
-    }, [
-      session?.participants,
-    ]);
+    }, [session]);
 
   const currentParticipant =
     useMemo(() => {
@@ -834,10 +840,11 @@ export default function VisioDetailPage() {
   const canJoin =
     Boolean(
       session &&
-        sessionIsLive &&
+        !sessionIsClosed &&
+        normalizedSessionStatus !== "draft" &&
         (
-          isSessionCoach ||
-          clientIsAuthorized
+          (isSessionCoach && sessionIsLive) ||
+          (!isSessionCoach && clientIsAuthorized)
         ),
     );
 
@@ -853,6 +860,18 @@ export default function VisioDetailPage() {
       capacityReached &&
         !currentParticipant &&
         !isSessionCoach,
+    );
+
+  const canReserveFreeSession =
+    Boolean(
+      session &&
+        !session.reservation_id &&
+        !sessionIsClosed &&
+        !sessionFullForCurrentUser &&
+        !currentParticipant &&
+        !isSessionCoach &&
+        !userHasCoachRole &&
+        Number(session.price || 0) <= 0,
     );
 
   /* =======================================================
@@ -888,20 +907,36 @@ export default function VisioDetailPage() {
     }
   }
 
+  async function reserveFreeSession(): Promise<void> {
+    await execute(
+      "reserve",
+      async () => {
+        if (!canReserveFreeSession) {
+          throw new Error(
+            "Cette séance ne peut pas être réservée depuis cet écran.",
+          );
+        }
+
+        const result = await reserveVisioSession(sessionId);
+
+        if (result.session) {
+          setSession(result.session);
+        } else {
+          await loadSession();
+        }
+
+        setSuccess(
+          "Votre place est confirmée. Vous pourrez rejoindre la salle pendant sa période d’ouverture.",
+        );
+      },
+    );
+  }
+
   async function joinRoom(): Promise<void> {
     await execute(
       "join",
       async () => {
         if (!canJoin) {
-          if (
-            clientIsAuthorized &&
-            !sessionIsLive
-          ) {
-            throw new Error(
-              "La séance n’a pas encore été démarrée par l’intervenant.",
-            );
-          }
-
           if (sessionFullForCurrentUser) {
             throw new Error(
               "Cette séance a déjà atteint sa capacité maximale de deux coachés.",
@@ -1042,8 +1077,15 @@ export default function VisioDetailPage() {
     );
   }
 
-  function leaveRoom(): void {
+  async function leaveRoom(): Promise<void> {
     setCredentials(null);
+
+    try {
+      await leaveVisioSession(sessionId);
+    } catch {
+      // La connexion LiveKit est déjà coupée localement. L’API pourra
+      // resynchroniser le participant lors de la prochaine entrée.
+    }
 
     setSuccess(
       "Vous avez quitté la salle visio.",
@@ -1274,7 +1316,7 @@ export default function VisioDetailPage() {
                     </strong>
 
                     <span className="mt-1 block text-xs font-bold text-slate-500">
-                      Coachés ayant payé
+                      Coachés confirmés
                     </span>
                   </div>
 
@@ -1285,15 +1327,11 @@ export default function VisioDetailPage() {
                     />
 
                     <strong className="block text-lg font-black">
-                      {formatMoney(
-                        session.price,
-                        session.currency ||
-                          DEFAULT_CURRENCY,
-                      )}
+                      {session.reservation_id ? "Payé via Stripe" : "Gratuit"}
                     </strong>
 
                     <span className="mt-1 block text-xs font-bold text-slate-500">
-                      Prix par coaché
+                      Accès à la visio
                     </span>
                   </div>
                 </div>
@@ -1337,9 +1375,8 @@ export default function VisioDetailPage() {
                         video
                         data-lk-theme="default"
                         onDisconnected={() => {
-                          setCredentials(
-                            null,
-                          );
+                          setCredentials(null);
+                          void leaveVisioSession(sessionId).catch(() => undefined);
 
                           setSuccess(
                             "Vous avez été déconnecté de la salle visio.",
@@ -1439,6 +1476,22 @@ export default function VisioDetailPage() {
                         </div>
                       )}
 
+                    {canReserveFreeSession && (
+                      <button
+                        type="button"
+                        onClick={() => void reserveFreeSession()}
+                        disabled={action !== ""}
+                        className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-orange-600 px-5 text-sm font-black text-white transition hover:bg-orange-700 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {action === "reserve" ? (
+                          <Loader2 className="animate-spin" size={17} />
+                        ) : (
+                          <CheckCircle2 size={17} />
+                        )}
+                        {action === "reserve" ? "Réservation…" : "Réserver gratuitement"}
+                      </button>
+                    )}
+
                     {!isSessionCoach &&
                       !clientIsAuthorized &&
                       !userHasCoachRole &&
@@ -1458,11 +1511,7 @@ export default function VisioDetailPage() {
                       !sessionIsLive &&
                       !sessionIsClosed && (
                         <div className="mt-5 rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold leading-6 text-blue-700">
-                          Votre accès est
-                          confirmé. La salle
-                          sera disponible dès
-                          que l’intervenant aura
-                          démarré la séance.
+                          Votre accès est confirmé. L’API autorise l’entrée à partir de 15 minutes avant l’heure prévue.
                         </div>
                       )}
                   </div>

@@ -1430,62 +1430,70 @@ export default function ProfilePage() {
   ======================================================= */
 
   useEffect(() => {
-    const token =
-      getToken();
+    const timer = window.setTimeout(() => {
+      const token =
+        getToken();
 
-    const localUser =
-      getCurrentUser() as
-        | ProfileUser
-        | null;
+      const localUser =
+        getCurrentUser() as
+          | ProfileUser
+          | null;
 
-    if (!token) {
-      router.replace(
-        "/auth/login",
-      );
+      if (!token) {
+        router.replace(
+          "/auth/login",
+        );
 
-      return;
-    }
+        return;
+      }
 
-    if (localUser) {
-      setUser(localUser);
-    }
+      if (localUser) {
+        setUser(localUser);
+      }
 
-    void loadProfile();
+      void loadProfile();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [
     loadProfile,
     router,
   ]);
 
   useEffect(() => {
-    const searchParams =
-      new URLSearchParams(
-        window.location.search,
-      );
+    const timer = window.setTimeout(() => {
+      const searchParams =
+        new URLSearchParams(
+          window.location.search,
+        );
 
-    const stripeReturn =
-      searchParams.get(
-        "stripe",
-      );
+      const stripeReturn =
+        searchParams.get(
+          "stripe",
+        );
 
-    if (
-      stripeReturn ===
-      "success"
-    ) {
-      setSuccess(
-        "Retour Stripe réussi. Vérification du compte en cours…",
-      );
+      if (
+        stripeReturn ===
+        "success"
+      ) {
+        setSuccess(
+          "Retour Stripe réussi. Vérification du compte en cours…",
+        );
 
-      void refreshStripeStatus();
-    }
+        void refreshStripeStatus();
+      }
 
-    if (
-      stripeReturn ===
-      "refresh"
-    ) {
-      setError(
-        "Le lien Stripe a expiré. Relancez l’activation des paiements.",
-      );
-    }
+      if (
+        stripeReturn ===
+        "refresh"
+      ) {
+        setError(
+          "Le lien Stripe a expiré. Relancez l’activation des paiements.",
+        );
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [
     refreshStripeStatus,
   ]);
@@ -1495,9 +1503,10 @@ export default function ProfilePage() {
       return;
     }
 
-    setName(
-      user.name || "",
-    );
+    const timer = window.setTimeout(() => {
+      setName(
+        user.name || "",
+      );
 
     setEmail(
       user.email || "",
@@ -1580,14 +1589,17 @@ export default function ProfilePage() {
         user.presentation_video_duration_seconds,
       );
 
-    setPresentationVideoDuration(
-      Number.isFinite(
-        duration,
-      ) &&
-        duration > 0
-        ? duration
-        : null,
-    );
+      setPresentationVideoDuration(
+        Number.isFinite(
+          duration,
+        ) &&
+          duration > 0
+          ? duration
+          : null,
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [user]);
 
   useEffect(() => {

@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isCoach } from "@/lib/auth";
 import type { User } from "@/types/auth";
 
 const navLinks = [
@@ -39,6 +39,9 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const visibleNavLinks = isCoach(user)
+    ? [...navLinks, { label: "Forum coachs", href: "/forum-coachs" }]
+    : navLinks;
 
   useEffect(() => {
     const syncUser = () => setUser(getCurrentUser());
@@ -80,7 +83,7 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
             aria-label="Navigation principale"
             className="hidden items-center gap-1 lg:flex"
           >
-            {navLinks.map((item) => {
+            {visibleNavLinks.map((item) => {
               const active = isActiveRoute(pathname, item.href);
 
               return (
@@ -190,7 +193,7 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
             </div>
 
             <nav className="mt-5 grid gap-1">
-              {navLinks.map((item) => (
+              {visibleNavLinks.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
