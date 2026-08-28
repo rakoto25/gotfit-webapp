@@ -32,6 +32,7 @@ import {
   Reservation,
   createPaymentIntent,
   fetchAnnonce,
+  formatMinorMoney,
   formatMoney,
   getAnnonceDescription,
   getAnnonceTitle,
@@ -126,8 +127,19 @@ function CheckoutForm({
               Montant à payer
             </span>
             <strong className="mt-1 block text-3xl font-black text-slate-950">
-              {formatMoney(payment.amount, payment.currency)}
+              {payment.amount_major !== undefined && payment.amount_major !== null
+                ? formatMoney(payment.amount_major, payment.currency)
+                : formatMinorMoney(
+                    payment.amount_in_cents ?? payment.amount,
+                    payment.currency
+                  )}
             </strong>
+            {Number(reservation.service_fee_amount || 0) > 0 && (
+              <span className="mt-2 block text-xs font-bold text-orange-800">
+                Prestation {formatMoney(reservation.price, payment.currency)} + frais de service{" "}
+                {formatMoney(reservation.service_fee_amount, payment.currency)}
+              </span>
+            )}
           </div>
           <CreditCard className="text-orange-700" size={28} />
         </div>

@@ -926,7 +926,7 @@ export default function VisioDetailPage() {
         }
 
         setSuccess(
-          "Votre place est confirmée. Vous pourrez rejoindre la salle pendant sa période d’ouverture.",
+          "Votre place est confirmée. Vous pouvez rejoindre la salle immédiatement.",
         );
       },
     );
@@ -1511,7 +1511,7 @@ export default function VisioDetailPage() {
                       !sessionIsLive &&
                       !sessionIsClosed && (
                         <div className="mt-5 rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold leading-6 text-blue-700">
-                          Votre accès est confirmé. L’API autorise l’entrée à partir de 15 minutes avant l’heure prévue.
+                          Votre accès est confirmé. Vous pouvez rejoindre la salle immédiatement, sans attendre l’heure prévue.
                         </div>
                       )}
                   </div>
