@@ -117,6 +117,13 @@ type Reservation = {
   status?: string | null;
   reservation_status?: string | null;
   payment_status?: string | null;
+  prestation_status?: string | null;
+
+  visio_session_id?: number | string | null;
+  visio_session?: {
+    id?: number | string | null;
+    status?: string | null;
+  } | null;
 
   amount?: number | string | null;
   total?: number | string | null;
@@ -141,6 +148,7 @@ type Reservation = {
 
   annonce?: {
     id?: number;
+    titre?: string | null;
     title?: string | null;
     name?: string | null;
     price?: number | string | null;
@@ -549,6 +557,53 @@ function getStatusClasses(
   }
 
   return "bg-slate-100 text-slate-600";
+}
+
+
+function isReservationPaid(
+  reservation: Reservation,
+): boolean {
+  return (
+    reservation.payment_status === "paid" ||
+    reservation.is_paid === true ||
+    reservation.is_paid === 1
+  );
+}
+
+function getReservationVisioSessionId(
+  reservation: Reservation,
+): number | string | null {
+  return (
+    reservation.visio_session_id ??
+    reservation.visio_session?.id ??
+    null
+  );
+}
+
+function canAccessReservationVisio(
+  reservation: Reservation,
+): boolean {
+  const status = (
+    reservation.prestation_status ||
+    reservation.status ||
+    reservation.reservation_status ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return (
+    isReservationPaid(reservation) &&
+    getReservationVisioSessionId(reservation) !== null &&
+    ![
+      "cancelled",
+      "canceled",
+      "annule",
+      "annulee",
+      "refunded",
+      "remboursee",
+    ].includes(status)
+  );
 }
 
 /* =========================================================
@@ -1056,12 +1111,9 @@ export default function ProfilePage() {
           (
             reservation,
           ) =>
-            reservation.payment_status ===
-              "paid" ||
-            reservation.is_paid ===
-              true ||
-            reservation.is_paid ===
-              1,
+            isReservationPaid(
+              reservation,
+            ),
         ),
       [reservations],
     );
@@ -3523,6 +3575,9 @@ export default function ProfilePage() {
                       const title =
                         reservation
                           .annonce
+                          ?.titre ||
+                        reservation
+                          .annonce
                           ?.title ||
                         reservation
                           .annonce
@@ -3534,12 +3589,18 @@ export default function ProfilePage() {
                         reservation.reservation_status;
 
                       const amount =
+                        reservation.total_client_amount ??
                         reservation.amount ??
                         reservation.total ??
                         reservation.price ??
                         reservation
                           .annonce
                           ?.price;
+
+                      const visioSessionId =
+                        getReservationVisioSessionId(
+                          reservation,
+                        );
 
                       return (
                         <div
@@ -3576,12 +3637,49 @@ export default function ProfilePage() {
                             </span>
                           </div>
 
-                          <div className="mt-3 text-sm font-black text-slate-950">
-                            {formatMoney(
-                              amount,
-                              reservation.currency ||
-                                "EUR",
-                            )}
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <div className="text-sm font-black text-slate-950">
+                              {formatMoney(
+                                amount,
+                                reservation.currency ||
+                                  "EUR",
+                              )}
+                            </div>
+
+                            {canAccessReservationVisio(
+                              reservation,
+                            ) &&
+                              visioSessionId !==
+                                null && (
+                                <Link
+                                  href={`/visio/${encodeURIComponent(
+                                    String(
+                                      visioSessionId,
+                                    ),
+                                  )}`}
+                                  className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-xs font-black text-white transition hover:bg-slate-800"
+                                >
+                                  <Video
+                                    aria-hidden="true"
+                                    size={15}
+                                  />
+                                  Accéder à la visio
+                                </Link>
+                              )}
+
+                            {isReservationPaid(
+                              reservation,
+                            ) &&
+                              visioSessionId ===
+                                null && (
+                                <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-xs font-black text-amber-700">
+                                  <Video
+                                    aria-hidden="true"
+                                    size={15}
+                                  />
+                                  Visio en préparation
+                                </span>
+                              )}
                           </div>
                         </div>
                       );
