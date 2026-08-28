@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -26,6 +27,8 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  Maximize2,
+  Minimize2,
   RefreshCw,
   ShieldCheck,
   Users,
@@ -431,6 +434,113 @@ export default function VisioDetailPage() {
     setSuccess,
   ] =
     useState("");
+
+  const [
+    focusMode,
+    setFocusMode,
+  ] =
+    useState(false);
+
+  const [
+    browserFullscreen,
+    setBrowserFullscreen,
+  ] =
+    useState(false);
+
+  const roomShellRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
+
+  /* =======================================================
+     MODE IMMERSIF / PLEIN ÉCRAN
+  ======================================================= */
+
+  useEffect(() => {
+    function synchronizeFullscreen(): void {
+      setBrowserFullscreen(
+        document.fullscreenElement ===
+          roomShellRef.current,
+      );
+    }
+
+    document.addEventListener(
+      "fullscreenchange",
+      synchronizeFullscreen,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        synchronizeFullscreen,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleEscape(
+      event: KeyboardEvent,
+    ): void {
+      if (
+        event.key === "Escape" &&
+        focusMode &&
+        !document.fullscreenElement
+      ) {
+        setFocusMode(false);
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      handleEscape,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleEscape,
+      );
+    };
+  }, [focusMode]);
+
+  async function toggleBrowserFullscreen(): Promise<void> {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      if (
+        !roomShellRef.current?.requestFullscreen
+      ) {
+        throw new Error(
+          "Le plein écran n’est pas pris en charge par ce navigateur.",
+        );
+      }
+
+      await roomShellRef.current.requestFullscreen();
+    } catch (fullscreenError) {
+      setError(
+        messageOf(
+          fullscreenError,
+          "Impossible d’activer le plein écran du navigateur.",
+        ),
+      );
+    }
+  }
+
+  async function reduceRoom(): Promise<void> {
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        // Le mode immersif GotFit reste contrôlable même si le navigateur
+        // refuse de quitter son plein écran natif.
+      }
+    }
+
+    setFocusMode(false);
+  }
 
   /* =======================================================
      AUTHENTIFICATION
@@ -964,6 +1074,7 @@ export default function VisioDetailPage() {
         }
 
         setCredentials(payload);
+        setFocusMode(true);
 
         if (payload.session) {
           setSession(
@@ -1027,6 +1138,7 @@ export default function VisioDetailPage() {
         }
 
         setCredentials(payload);
+        setFocusMode(true);
 
         if (payload.session) {
           setSession(
@@ -1069,6 +1181,11 @@ export default function VisioDetailPage() {
 
         setSession(updated);
         setCredentials(null);
+        setFocusMode(false);
+
+        if (document.fullscreenElement) {
+          await document.exitFullscreen().catch(() => undefined);
+        }
 
         setSuccess(
           "La séance visio est terminée.",
@@ -1079,6 +1196,11 @@ export default function VisioDetailPage() {
 
   async function leaveRoom(): Promise<void> {
     setCredentials(null);
+    setFocusMode(false);
+
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => undefined);
+    }
 
     try {
       await leaveVisioSession(sessionId);
@@ -1341,28 +1463,80 @@ export default function VisioDetailPage() {
                 {hasRoomCredentials(
                   credentials,
                 ) ? (
-                  <div className="mt-7 overflow-hidden rounded-[2rem] bg-slate-950 shadow-xl">
-                    <div className="flex flex-col gap-4 border-b border-white/10 bg-slate-950 px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+                  <div
+                    ref={roomShellRef}
+                    className={
+                      focusMode
+                        ? "fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-slate-950 text-white"
+                        : "mt-7 overflow-hidden rounded-[2rem] bg-slate-950 shadow-xl"
+                    }
+                  >
+                    <div className="relative z-20 flex min-h-[72px] shrink-0 flex-col gap-4 border-b border-white/10 bg-slate-950/95 px-4 py-3 text-white backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-400">
                           Connexion sécurisée
                         </p>
 
                         <h2 className="mt-1 text-lg font-black">
-                          Salle visio en cours
+                          GotFit Live · Salle visio en cours
                         </h2>
                       </div>
 
-                      <VisioControls
-                        inRoom
-                        canEnd={canEnd}
-                        busyAction={action}
-                        onLeave={leaveRoom}
-                        onEnd={endRoom}
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {focusMode && (
+                          <span className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-slate-200 md:inline-flex">
+                            {totalParticipantCount}/{VISIO_MAX_TOTAL_PARTICIPANTS} participants
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void toggleBrowserFullscreen();
+                          }}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 text-xs font-black text-white transition hover:bg-white/20"
+                        >
+                          {browserFullscreen ? (
+                            <Minimize2 size={16} />
+                          ) : (
+                            <Maximize2 size={16} />
+                          )}
+
+                          {browserFullscreen
+                            ? "Quitter plein écran"
+                            : "Plein écran"}
+                        </button>
+
+                        {focusMode && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void reduceRoom();
+                            }}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 text-xs font-black text-white transition hover:bg-white/20"
+                          >
+                            <Minimize2 size={16} />
+                            Réduire
+                          </button>
+                        )}
+
+                        <VisioControls
+                          inRoom
+                          canEnd={canEnd}
+                          busyAction={action}
+                          onLeave={leaveRoom}
+                          onEnd={endRoom}
+                        />
+                      </div>
                     </div>
 
-                    <div className="min-h-[560px] p-2">
+                    <div
+                      className={
+                        focusMode
+                          ? "min-h-0 flex-1 bg-black p-0 [&_.lk-room-container]:h-full [&_.lk-video-conference]:h-full"
+                          : "min-h-[560px] p-2 [&_.lk-room-container]:min-h-[544px]"
+                      }
+                    >
                       <LiveKitRoom
                         serverUrl={
                           credentials.server_url
@@ -1374,8 +1548,20 @@ export default function VisioDetailPage() {
                         audio
                         video
                         data-lk-theme="default"
+                        className="h-full min-h-0"
+                        onConnected={() => {
+                          setError("");
+                          setFocusMode(true);
+                          setSuccess(
+                            "Connexion LiveKit établie. La salle est prête.",
+                          );
+                        }}
                         onDisconnected={() => {
                           setCredentials(null);
+                          setFocusMode(false);
+                          if (document.fullscreenElement) {
+                            void document.exitFullscreen().catch(() => undefined);
+                          }
                           void leaveVisioSession(sessionId).catch(() => undefined);
 
                           setSuccess(
@@ -1387,6 +1573,12 @@ export default function VisioDetailPage() {
                         <RoomAudioRenderer />
                       </LiveKitRoom>
                     </div>
+
+                    {focusMode && !browserFullscreen && (
+                      <div className="pointer-events-none absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full bg-black/55 px-4 py-2 text-center text-[11px] font-bold text-white/80 backdrop-blur md:bottom-4">
+                        Échap ou « Réduire » pour revenir à la page GotFit · « Plein écran » pour masquer aussi le navigateur
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="mt-7 rounded-[2rem] border border-orange-100 bg-orange-50 p-6">
