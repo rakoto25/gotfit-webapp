@@ -1049,7 +1049,7 @@ export default function VisioDetailPage() {
         if (!canJoin) {
           if (sessionFullForCurrentUser) {
             throw new Error(
-              "Cette séance a déjà atteint sa capacité maximale de deux coachés.",
+              "Cette séance a déjà atteint sa capacité maximale de quatre coachés.",
             );
           }
 
@@ -1649,7 +1649,7 @@ export default function VisioDetailPage() {
                       !sessionIsClosed && (
                         <div className="mt-5 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold leading-6 text-red-700">
                           Cette séance est
-                          complète. Les deux
+                          complète. Les quatre
                           places réservées aux
                           coachés sont déjà
                           occupées.
@@ -1765,7 +1765,7 @@ export default function VisioDetailPage() {
 
                     <div className="rounded-2xl bg-white p-4">
                       <strong className="block text-sm font-black text-slate-950">
-                        2 coachés maximum
+                        4 coachés maximum
                       </strong>
 
                       <span className="mt-1 block text-xs font-semibold text-slate-500">

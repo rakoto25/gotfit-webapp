@@ -55,14 +55,14 @@ import {
  * Capacité maximale :
  *
  * - 1 intervenant organisateur ;
- * - 2 coachés maximum ;
- * - 3 personnes au total.
+ * - 4 coachés maximum ;
+ * - 5 personnes au total.
  *
  * Les champs Laravel `min_participants` et
  * `max_participants` représentent ici le nombre
  * de coachés, sans compter l’intervenant.
  */
-const VISIO_MAX_COACHEES = 2;
+const VISIO_MAX_COACHEES = 4;
 const VISIO_MIN_COACHEES = 1;
 
 const DEFAULT_DURATION_MINUTES = 60;
@@ -453,7 +453,7 @@ function validateForm(
     minimumParticipants >
       VISIO_MAX_COACHEES
   ) {
-    return "Le nombre minimum de coachés doit être compris entre 1 et 2.";
+    return "Le nombre minimum de coachés doit être compris entre 1 et 4.";
   }
 
   const price =
@@ -887,7 +887,7 @@ export default function VisioPage() {
               <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-orange-700 shadow-sm">
                 <Video size={16} />
 
-                Visio V1 · 3 personnes max
+                Visio GotFit · 5 personnes max
               </span>
 
               <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-tight sm:text-6xl">
@@ -898,8 +898,8 @@ export default function VisioPage() {
                 Créez, réservez et rejoignez
                 des séances en ligne. Chaque
                 visio accueille un intervenant
-                et jusqu’à deux coachés, soit
-                trois participants maximum.
+                et jusqu’à quatre coachés, soit
+                cinq participants maximum.
               </p>
             </div>
 
@@ -1087,7 +1087,7 @@ export default function VisioPage() {
 
                   <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
                     Une séance peut accueillir
-                    un intervenant et deux
+                    un intervenant et quatre
                     coachés au maximum.
                   </p>
                 </div>
@@ -1130,7 +1130,7 @@ export default function VisioPage() {
                   />
 
                   <strong className="mt-3 block text-lg font-black text-slate-950">
-                    2 coachés max.
+                    4 coachés max.
                   </strong>
 
                   <span className="mt-1 block text-xs font-semibold text-slate-500">
@@ -1145,7 +1145,7 @@ export default function VisioPage() {
                   />
 
                   <strong className="mt-3 block text-lg font-black text-slate-950">
-                    3 personnes
+                    5 personnes
                   </strong>
 
                   <span className="mt-1 block text-xs font-semibold text-slate-500">
@@ -1297,6 +1297,14 @@ export default function VisioPage() {
                     <option value={2}>
                       2 coachés
                     </option>
+
+                    <option value={3}>
+                      3 coachés
+                    </option>
+
+                    <option value={4}>
+                      4 coachés
+                    </option>
                   </select>
                 </label>
 
@@ -1305,7 +1313,7 @@ export default function VisioPage() {
 
                   <div className="gotfit-input flex min-h-12 items-center justify-between bg-slate-50">
                     <span>
-                      2 coachés maximum
+                      4 coachés maximum
                     </span>
 
                     <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-orange-700">

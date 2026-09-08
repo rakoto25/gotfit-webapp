@@ -11,6 +11,7 @@ import {
   Clock3,
   CreditCard,
   Loader2,
+  Link2,
   MessageSquareWarning,
   RefreshCw,
   ShieldCheck,
@@ -39,6 +40,7 @@ import {
   isReservationOnline,
   isReservationPaid,
   syncPaymentStatus,
+  createReservationVisioLink,
 } from "@/lib/marketplace";
 
 const statusLabels: Record<string, string> = {
@@ -268,6 +270,26 @@ export default function ReservationsPage() {
       await loadReservations();
     } catch (err) {
       setError(getErrorMessage(err, "Impossible de terminer cette réservation."));
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleCreateVisioLink(reservationId: number) {
+    try {
+      setActionLoading(reservationId);
+      setError("");
+      setSuccess("");
+      const link = await createReservationVisioLink(reservationId);
+      try {
+        await navigator.clipboard.writeText(link);
+        setSuccess("Lien visio créé et copié. Partagez-le avec le client ayant payé la prestation.");
+      } catch {
+        setSuccess(`Lien visio créé : ${link}`);
+      }
+      await loadReservations();
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible de créer le lien visio."));
     } finally {
       setActionLoading(null);
     }
@@ -527,6 +549,44 @@ export default function ReservationsPage() {
                           <ArrowRight size={17} />
                         </Link>
                       )}
+
+                      {roleLabel === "coach" &&
+                        isReservationPaid(reservation) &&
+                        isReservationOnline(reservation) &&
+                        Boolean(reservation.visio_session_id || reservation.visio_session?.id) &&
+                        !reservation.visio_session?.link_created_at && (
+                          <button
+                            type="button"
+                            onClick={() => void handleCreateVisioLink(reservation.id)}
+                            disabled={isBusy}
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white transition hover:bg-orange-700 disabled:opacity-60"
+                          >
+                            {isBusy ? <Loader2 className="animate-spin" size={17} /> : <Link2 size={17} />}
+                            Créer le lien visio
+                          </button>
+                        )}
+
+                      {roleLabel === "coach" && reservation.visio_session?.join_url && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(reservation.visio_session?.join_url || "");
+                            setSuccess("Lien visio copié. Vous pouvez maintenant le partager avec le client.");
+                          }}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-black text-orange-700 transition hover:bg-orange-100"
+                        >
+                          <Link2 size={17} /> Copier le lien client
+                        </button>
+                      )}
+
+                      {roleLabel === "client" &&
+                        isReservationPaid(reservation) &&
+                        Boolean(reservation.visio_session_id || reservation.visio_session?.id) &&
+                        !reservation.visio_session?.link_created_at && (
+                          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-bold leading-5 text-amber-700">
+                            Paiement confirmé. Votre coach prépare le lien privé de la visioconférence.
+                          </div>
+                        )}
 
                       {isReservationPaid(reservation) &&
                         isReservationOnline(reservation) &&

@@ -22,6 +22,7 @@ const footerGroups = [
       { label: "Planning", href: "/planning" },
       { label: "Réservations", href: "/reservations" },
       { label: "Messages", href: "/messages" },
+      { label: "Forum coachs", href: "/forum-coachs" },
       { label: "Profil", href: "/profile" },
     ],
   },
@@ -91,7 +92,17 @@ export default function Footer() {
         </div>
 
         <div className="flex flex-col gap-5 pt-7 text-xs font-semibold text-white/40 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} Gotfit. Tous droits réservés.</p>
+          <p>
+            © {new Date().getFullYear()} Gotfit. Tous droits réservés. Créé par{" "}
+            <a
+              href="https://lagence39.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-black text-white/70 transition hover:text-[var(--brand)]"
+            >
+              L’Agence 39
+            </a>
+          </p>
 
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-2">

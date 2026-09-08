@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import { getCurrentUser, isCoach } from "@/lib/auth";
+import { getCurrentUser, isAdmin, isCoach } from "@/lib/auth";
 import type { User } from "@/types/auth";
 
 const navLinks = [
@@ -39,7 +39,7 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const visibleNavLinks = isCoach(user)
+  const visibleNavLinks = isCoach(user) || isAdmin(user)
     ? [...navLinks, { label: "Forum coachs", href: "/forum-coachs" }]
     : navLinks;
 

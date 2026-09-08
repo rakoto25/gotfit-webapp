@@ -1,6 +1,6 @@
 # Gotfit Webapp
 
-Webapp Next.js 16 de Gotfit, pensée pour les clients, coachs, structures et
+Webapp Next.js 16 de GotFit, pensée pour les clients, coachs, structures et
 administrateurs.
 
 ## Prérequis
@@ -44,8 +44,24 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=000000000000-example.apps.googleusercontent.com
 ## Vérification
 
 ```bash
+npm run test
+npm run lint
 npm run build
 ```
 
-La nouvelle interface inclut une page d'accueil complète, une navigation
-responsive, un centre d'aide, les écrans Google et une carte sociale dédiée.
+Les tests Vitest vérifient les appels API du forum, les canaux, réactions,
+mentions et notifications. La compilation valide toutes les pages Next.js.
+
+## Forum et visio
+
+- `/forum-coachs` : canaux, recherche, tri, création et liste des discussions ;
+- `/forum-coachs/[id]` : discussion, réactions et réponses imbriquées ;
+- `/forum-coachs/notifications` : notifications internes ;
+- `/admin/forum` : canaux et signalements pour la modération ;
+- `/reservations` : le coach génère et copie le lien visio après confirmation
+  du paiement ; le client ne peut rejoindre la salle qu'une fois ce lien créé ;
+- `/visio` : quatre coachés et un coach au maximum.
+
+Pour la production, utiliser `npm ci`, renseigner `.env.local`, puis lancer
+`npm run build`. Le pied de page de la page d'accueil crédite
+[L'Agence 39](https://lagence39.com).

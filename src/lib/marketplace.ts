@@ -103,7 +103,12 @@ export type Reservation = {
   intervenant?: GotfitUser | null;
   calendar_url?: string | null;
   visio_session_id?: number | null;
-  visio_session?: { id?: number | null; status?: string | null } | null;
+  visio_session?: {
+    id?: number | null;
+    status?: string | null;
+    join_url?: string | null;
+    link_created_at?: string | null;
+  } | null;
   review?: Review | null;
   start?: string | null;
   end?: string | null;
@@ -479,8 +484,25 @@ export function canAccessReservationVisio(reservation: Reservation) {
     isReservationPaid(reservation) &&
     isReservationOnline(reservation) &&
     Boolean(reservation.visio_session_id || reservation.visio_session?.id) &&
+    Boolean(reservation.visio_session?.join_url || reservation.visio_session?.link_created_at) &&
     !["cancelled", "annulee", "refunded", "remboursee"].includes(status)
   );
+}
+
+export async function createReservationVisioLink(reservationId: number) {
+  const payload = await apiRequest<{
+    join_url?: string;
+    session?: Reservation["visio_session"];
+  }>(`/reservation/${reservationId}/visio-link`, {
+    method: "POST",
+    auth: true,
+  });
+
+  if (!payload.join_url) {
+    throw new Error("Le lien a été créé, mais l’adresse est introuvable.");
+  }
+
+  return payload.join_url;
 }
 
 export function canAddReservationToCalendar(reservation: Reservation) {

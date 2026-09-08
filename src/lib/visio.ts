@@ -11,8 +11,8 @@ import type {
    CONFIGURATION VISIO V1
 ========================================================= */
 
-export const VISIO_MAX_COACHEES = 2;
-export const VISIO_MAX_TOTAL_PARTICIPANTS = 3;
+export const VISIO_MAX_COACHEES = 4;
+export const VISIO_MAX_TOTAL_PARTICIPANTS = 5;
 
 /* =========================================================
    TYPES
@@ -1329,7 +1329,7 @@ export async function createVisioSession(
 
           /**
            * Règle fixe de la V1 :
-           * deux coachés maximum.
+           * quatre coachés maximum.
            */
           max_participants:
             VISIO_MAX_COACHEES,
