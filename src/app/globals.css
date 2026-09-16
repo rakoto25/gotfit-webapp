@@ -182,9 +182,6 @@ summary:focus-visible {
     box-shadow 160ms ease;
 }
 
-/* Unlayered padding must not override the space reserved for field icons. */
-.gotfit-input.pl-11 { padding-left: 2.75rem; }
-
 .gotfit-input::placeholder {
   color: #9aa29e;
 }

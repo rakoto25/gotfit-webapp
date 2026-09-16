@@ -925,6 +925,9 @@ export default function ProfilePage() {
   const [name, setName] =
     useState("");
 
+  const [displayName, setDisplayName] =
+    useState("");
+
   const [email, setEmail] =
     useState("");
 
@@ -1560,6 +1563,10 @@ export default function ProfilePage() {
         user.name || "",
       );
 
+    setDisplayName(
+      user.display_name || user.name || "",
+    );
+
     setEmail(
       user.email || "",
     );
@@ -2078,6 +2085,11 @@ export default function ProfilePage() {
       );
 
       formData.append(
+        "display_name",
+        displayName.trim(),
+      );
+
+      formData.append(
         "email",
         cleanEmail,
       );
@@ -2445,9 +2457,9 @@ export default function ProfilePage() {
           </div>
 
           <div className="px-5 pb-8 sm:px-8">
-            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-              <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="relative -mt-16 h-32 w-32 shrink-0 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-2xl">
+            <div className="-mt-16 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+                <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-2xl">
                   {photoPreview ? (
                     <img
                       src={
@@ -2492,7 +2504,7 @@ export default function ProfilePage() {
                   </label>
                 </div>
 
-                <div className="min-w-0 pb-1">
+                <div className="pb-1">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
                       {mainRole}
@@ -2511,7 +2523,7 @@ export default function ProfilePage() {
                     )}
                   </div>
 
-                  <h1 className="break-words text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                  <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
                     {user?.name ||
                       "Utilisateur Gotfit"}
                   </h1>
@@ -2645,6 +2657,31 @@ export default function ProfilePage() {
                     placeholder="Nom complet"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="profile-display-name"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
+                  Pseudo / nom affiché
+                </label>
+                <div className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 transition focus-within:border-orange-500 focus-within:bg-white">
+                  <UserRound aria-hidden="true" size={18} className="shrink-0 text-orange-500" />
+                  <input
+                    id="profile-display-name"
+                    name="display_name"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    disabled={saving}
+                    maxLength={80}
+                    className="w-full bg-transparent text-sm font-semibold outline-none"
+                    placeholder="Nom visible publiquement"
+                  />
+                </div>
+                <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                  Ce nom est affiché sur votre profil public et vos annonces.
+                </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

@@ -732,10 +732,10 @@ export function getIntervenantName(
 
   return (
     firstText(sources, [
-      "name",
-      "full_name",
       "display_name",
       "username",
+      "name",
+      "full_name",
     ]) ?? "Intervenant Gotfit"
   );
 }

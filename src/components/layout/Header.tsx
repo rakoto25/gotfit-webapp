@@ -119,7 +119,7 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
                   className="gotfit-button gotfit-button-dark min-h-10 px-4 py-2"
                 >
                   <UserRound size={17} />
-                  <span className="max-w-40 truncate" title={user.name}>{user.name?.trim() || "Mon espace"}</span>
+                  {user.name?.split(" ")[0] || "Mon espace"}
                 </Link>
               </>
             ) : (

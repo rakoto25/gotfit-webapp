@@ -1,6 +1,5 @@
 "use client";
 
-import { availableTimes, weekDays } from "@/lib/availability";
 import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -57,12 +56,105 @@ function getToday() {
   return `${year}-${month}-${day}`;
 }
 
+const weekdayKeys = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+function toLocalDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getAvailableDates(annonce?: Annonce | null, horizonDays = 90) {
+  const days = new Set((annonce?.available_days || []).map((day) => day.toLowerCase()));
+
+  if (!days.size) return [];
+
+  const result: string[] = [];
+  const start = new Date();
+  start.setHours(12, 0, 0, 0);
+
+  for (let offset = 0; offset <= horizonDays; offset += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + offset);
+    const weekday = weekdayKeys[date.getDay()];
+
+    if (days.has(weekday)) {
+      result.push(toLocalDateValue(date));
+    }
+  }
+
+  return result;
+}
+
+function minutesFromTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function timeFromMinutes(value: number) {
+  const hours = String(Math.floor(value / 60)).padStart(2, "0");
+  const minutes = String(value % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function getAvailableStartTimes(annonce?: Annonce | null) {
+  if (!annonce) return [];
+
+  const duration = Math.max(15, Number(annonce.duration || 60));
+  const slots = new Set<string>();
+
+  for (const rawRange of annonce.available_hours || []) {
+    const [start, end] = String(rawRange).split("-");
+
+    if (!/^\d{2}:\d{2}$/.test(start || "") || !/^\d{2}:\d{2}$/.test(end || "")) {
+      continue;
+    }
+
+    const startMinutes = minutesFromTime(start);
+    const endMinutes = minutesFromTime(end);
+
+    for (
+      let current = startMinutes;
+      current + duration <= endMinutes;
+      current += duration
+    ) {
+      slots.add(timeFromMinutes(current));
+    }
+  }
+
+  return Array.from(slots).sort();
+}
+
+function formatSlotDate(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
 function getCoachName(annonce?: Annonce | null) {
-  return annonce?.intervenant?.name || annonce?.user?.name || "Intervenant Gotfit";
+  return (
+    annonce?.intervenant?.display_name ||
+    annonce?.user?.display_name ||
+    annonce?.intervenant?.name ||
+    annonce?.user?.name ||
+    "Intervenant Gotfit"
+  );
 }
 
 function getLocation(_annonce?: Annonce | null) {
@@ -281,8 +373,8 @@ function ReservationContent() {
   const [selectedAnnonceId, setSelectedAnnonceId] = useState("");
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [payment, setPayment] = useState<PaymentIntentPayload | null>(null);
-  const [reservationDate, setReservationDate] = useState(getToday());
-  const [reservationTime, setReservationTime] = useState("10:00");
+  const [reservationDate, setReservationDate] = useState("");
+  const [reservationTime, setReservationTime] = useState("");
   const [guests, setGuests] = useState(1);
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
@@ -293,8 +385,25 @@ function ReservationContent() {
     return annonces.find((item) => String(item.id) === selectedAnnonceId) || null;
   }, [annonces, selectedAnnonceId]);
 
-  const slots = availableTimes(selectedAnnonce, reservationDate);
-  const selectedTime = slots.includes(reservationTime) ? reservationTime : "";
+  const availableDates = useMemo(
+    () => getAvailableDates(selectedAnnonce),
+    [selectedAnnonce]
+  );
+
+  const availableStartTimes = useMemo(
+    () => getAvailableStartTimes(selectedAnnonce),
+    [selectedAnnonce]
+  );
+
+  useEffect(() => {
+    const nextDate = availableDates[0] || "";
+    const nextTime = availableStartTimes[0] || "";
+
+    setReservationDate(nextDate);
+    setReservationTime(nextTime);
+    setPayment(null);
+    setReservation(null);
+  }, [selectedAnnonceId, availableDates, availableStartTimes]);
 
   const stripeOptions = useMemo<StripeElementsOptions | undefined>(() => {
     if (!payment?.clientSecret) return undefined;
@@ -366,10 +475,16 @@ function ReservationContent() {
       return;
     }
 
-    if (!selectedTime) {
-      setError("Choisissez un créneau parmi les disponibilités du coach.");
+    if (!reservationDate || !availableDates.includes(reservationDate)) {
+      setError("Choisissez une date proposée par le coach.");
       return;
     }
+
+    if (!reservationTime || !availableStartTimes.includes(reservationTime)) {
+      setError("Choisissez un créneau horaire proposé par le coach.");
+      return;
+    }
+
     if (submitting) return;
 
     try {
@@ -380,7 +495,7 @@ function ReservationContent() {
 
       const createdReservation = await reserveAnnonce(selectedAnnonce.id, {
         reservation_date: reservationDate,
-        reservation_time: selectedTime,
+        reservation_time: reservationTime,
         guests,
         note: note.trim(),
       });
@@ -582,59 +697,70 @@ function ReservationContent() {
                 </div>
 
                 {!payment && (
-                  <form onSubmit={handleReserve} className="grid gap-4">
-                    <p className="text-sm font-semibold text-[var(--muted)]">
-                      Jours proposés : {weekDays.filter(([day]) => selectedAnnonce?.available_days?.includes(day)).map(([, label]) => label).join(", ") || "Aucune disponibilité publiée"}.
-                      {" "}Horaires : {selectedAnnonce?.available_hours?.join(", ") || "à préciser par le coach"}.
-                    </p>
-                    {!slots.length && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm">Aucun créneau disponible à cette date. Choisissez un autre jour proposé par le coach.</p>}
-                    <details className="rounded-2xl border border-[var(--line)] p-4">
-                      <summary className="font-black">Comprendre le paiement</summary>
-                      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6">
-                        <li>Choisissez une séance et un créneau disponible. Le tarif affiché est le prix de la séance en euros.</li>
-                        <li>Avant de confirmer le paiement, le récapitulatif présente le prix, les frais de service et le montant total.</li>
-                        <li>Payez par carte via Stripe. Le coach doit ensuite confirmer la réservation.</li>
-                        <li>Après la séance en ligne, confirmez sa réalisation depuis vos réservations. Le versement au coach suit la validation de la prestation. En cas de problème, signalez-le depuis votre réservation.</li>
-                      </ol>
-                    </details>
+                  <>
+                    <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-6 text-slate-600">
+                      <strong className="block text-sm font-black text-slate-900">
+                        Comment fonctionne le paiement ?
+                      </strong>
+                      <span className="mt-1 block">
+                        Le prix de la prestation est affiché avant validation. Les frais de service sont calculés lors de la réservation, puis le paiement est sécurisé par Stripe. Le reversement au coach intervient selon la validation de la prestation et les règles Gotfit.
+                      </span>
+                      <Link href="/aide#paiement" className="mt-2 inline-flex font-black text-orange-700">
+                        Comprendre le paiement
+                      </Link>
+                    </div>
+                    <form onSubmit={handleReserve} className="grid gap-4">
                     <div>
                       <label className="mb-2 block text-sm font-black text-slate-700">
-                        Date
+                        Date proposée par le coach
                       </label>
                       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <CalendarDays size={18} className="text-slate-400" />
-                        <input
-                          type="date"
-                          min={getToday()}
+                        <select
                           value={reservationDate}
-                          onChange={(event) =>
-                            setReservationDate(event.target.value)
-                          }
+                          onChange={(event) => setReservationDate(event.target.value)}
                           className="w-full bg-transparent text-sm font-semibold outline-none"
                           required
-                        />
+                          disabled={!availableDates.length}
+                        >
+                          {!availableDates.length && (
+                            <option value="">Aucune date disponible</option>
+                          )}
+                          {availableDates.map((date) => (
+                            <option key={date} value={date}>
+                              {formatSlotDate(date)}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
                     <div>
                       <label className="mb-2 block text-sm font-black text-slate-700">
-                        Heure
+                        Créneau préféré
                       </label>
                       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <Clock3 size={18} className="text-slate-400" />
                         <select
-                          aria-label="Heure disponible"
-                          value={selectedTime}
-                          onChange={(event) =>
-                            setReservationTime(event.target.value)
-                          }
+                          value={reservationTime}
+                          onChange={(event) => setReservationTime(event.target.value)}
                           className="w-full bg-transparent text-sm font-semibold outline-none"
                           required
-                         >
-                          <option value="">Choisir un créneau</option>
-                          {slots.map(time => <option key={time} value={time}>{time}</option>)}
+                          disabled={!availableStartTimes.length}
+                        >
+                          {!availableStartTimes.length && (
+                            <option value="">Aucun créneau disponible</option>
+                          )}
+                          {availableStartTimes.map((time) => (
+                            <option key={time} value={time}>
+                              {time} - durée {selectedAnnonce?.duration || 60} min
+                            </option>
+                          ))}
                         </select>
                       </div>
+                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                        Seuls les créneaux renseignés par le coach peuvent être sélectionnés.
+                      </p>
                     </div>
 
                     <div>
@@ -668,7 +794,14 @@ function ReservationContent() {
 
                     <button
                       type="submit"
-                      disabled={submitting || !selectedAnnonce || !selectedTime}
+                      disabled={
+                        submitting ||
+                        !selectedAnnonce ||
+                        !reservationDate ||
+                        !reservationTime ||
+                        !availableDates.length ||
+                        !availableStartTimes.length
+                      }
                       className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {submitting ? (
@@ -679,6 +812,7 @@ function ReservationContent() {
                       {submitting ? "Création en cours..." : "Réserver et payer"}
                     </button>
                   </form>
+                  </>
                 )}
 
                 {payment && reservation && (

@@ -1,9 +1,8 @@
 "use client";
 
-import { getAuthDestination, getSafeRedirect } from "@/lib/auth-redirect";
 import Link from "next/link";
-import { FormEvent, Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   BadgeCheck,
@@ -105,12 +104,6 @@ function clearPendingCoachRegistration(): void {
 }
 
 export default function RegisterPage() {
-  return <Suspense fallback={<p className="p-8" role="status">Chargement…</p>}><RegisterPageContent /></Suspense>;
-}
-
-function RegisterPageContent() {
-  const searchParams = useSearchParams();
-  const requestedRedirect = getSafeRedirect(searchParams.get("redirect"));
   const router = useRouter();
 
   const [method, setMethod] =
@@ -420,7 +413,7 @@ function RegisterPageContent() {
 
       clearPendingCoachRegistration();
 
-      router.replace(getAuthDestination(result.user, window.location.search));
+      router.replace(getPostAuthRoute(result.user));
 
       router.refresh();
     } catch (registerError) {
@@ -896,7 +889,7 @@ function RegisterPageContent() {
       <p className="mt-7 text-center text-sm text-slate-600">
         Vous avez déjà un compte ?{" "}
         <Link
-          href={requestedRedirect ? `/auth/login?redirect=${encodeURIComponent(requestedRedirect)}` : "/auth/login"}
+          href="/auth/login"
           className="font-black text-[var(--ink)] underline decoration-[var(--brand)] decoration-2 underline-offset-4"
         >
           Se connecter

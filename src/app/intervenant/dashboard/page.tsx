@@ -1169,8 +1169,12 @@ export default function IntervenantDashboardPage() {
                   >
                     Créer une annonce
                   </Link>
-                  <Link href="/annonces/mes-annonces" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-slate-950">
-                    Voir et modifier mes annonces
+
+                  <Link
+                    href="/annonces/mes-annonces"
+                    className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/15"
+                  >
+                    Mes annonces
                   </Link>
 
                   <Link

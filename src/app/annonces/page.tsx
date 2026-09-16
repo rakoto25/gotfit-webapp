@@ -35,7 +35,13 @@ function isClientRequest(annonce: Annonce) {
 }
 
 function getPublisherName(annonce: Annonce) {
-  return annonce.intervenant?.name || annonce.user?.name || "Membre Gotfit";
+  return (
+    annonce.intervenant?.display_name ||
+    annonce.user?.display_name ||
+    annonce.intervenant?.name ||
+    annonce.user?.name ||
+    "Membre Gotfit"
+  );
 }
 
 function getPriceLabel(annonce: Annonce) {
@@ -134,7 +140,6 @@ export default function AnnoncesPage() {
           <div className="absolute -right-32 top-56 h-80 w-80 rounded-full bg-amber-300/25 blur-3xl" />
 
           <div className="relative mx-auto max-w-7xl">
-            <Link href="/annonces/mes-annonces" className="gotfit-button gotfit-button-dark mb-6">Voir et modifier mes annonces</Link>
             <div className="grid gap-8 lg:grid-cols-[1fr_0.85fr] lg:items-end">
               <div>
                 <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-orange-700 shadow-sm">

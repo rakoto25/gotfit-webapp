@@ -44,7 +44,7 @@ const tutorials = [
     tag: "3 min",
     title: "Comprendre le paiement",
     text: "Voir quand le paiement est débité, validé et reversé au professionnel.",
-    href: "/reservations",
+    href: "/aide#paiement",
   },
 ];
 
@@ -182,6 +182,42 @@ export default function HelpPage() {
                 </span>
               </Link>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="paiement" className="px-4 pb-24 sm:px-6 lg:pb-32">
+        <div className="mx-auto max-w-7xl rounded-[2.5rem] border border-orange-100 bg-white p-7 shadow-[0_20px_65px_rgba(21,33,27,0.06)] sm:p-10">
+          <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-[var(--brand-strong)]">
+            <CreditCard size={17} />
+            Comprendre le paiement
+          </span>
+          <h2 className="mt-4 max-w-3xl text-4xl font-black tracking-[-0.045em]">
+            De la réservation au reversement du coach
+          </h2>
+          <p className="mt-5 max-w-3xl text-sm font-semibold leading-7 text-slate-600">
+            Gotfit affiche le prix de la prestation avant la réservation. Les éventuels frais de service sont calculés avant le paiement afin que le client connaisse le montant à régler.
+          </p>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["1", "Choix du créneau", "Le client choisit une prestation, puis uniquement un créneau renseigné par le coach."],
+              ["2", "Montant affiché", "Le prix de la prestation et les frais de service applicables sont présentés avant la confirmation du paiement."],
+              ["3", "Paiement sécurisé", "Le paiement est traité par Stripe. La réservation et son statut de paiement restent visibles dans l’espace client."],
+              ["4", "Validation et reversement", "Après la séance, la prestation peut être validée ou faire l’objet d’un litige. Le reversement au coach suit ensuite les règles de la marketplace Gotfit."],
+            ].map(([step, title, text]) => (
+              <article key={step} className="rounded-[1.75rem] bg-[var(--canvas)] p-6">
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-950 text-sm font-black text-white">
+                  {step}
+                </span>
+                <h3 className="mt-5 text-lg font-black">{title}</h3>
+                <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">{text}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm font-semibold leading-7 text-slate-600">
+            En cas de problème après une séance, utilisez votre espace de réservation pour suivre le statut de la prestation ou ouvrir un litige avant le reversement lorsque cette action est disponible.
           </div>
         </div>
       </section>

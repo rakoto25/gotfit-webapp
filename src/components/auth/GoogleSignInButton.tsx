@@ -1,7 +1,5 @@
 "use client";
 
-import { getAuthDestination } from "@/lib/auth-redirect";
-
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import {
@@ -16,7 +14,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { saveAuth } from "@/lib/auth";
+import { getPostAuthRoute, saveAuth } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/api-config";
 import type { User } from "@/types/auth";
 
@@ -86,6 +84,7 @@ type PendingCoachRegistration = {
 type GoogleSignInButtonProps = {
   flow: "login" | "register";
   role?: RegisterRole;
+  redirectTo?: string | null;
   onError?: (message: string) => void;
 };
 
@@ -157,6 +156,7 @@ function clearPendingCoachRegistration() {
 export default function GoogleSignInButton({
   flow,
   role = "client",
+  redirectTo = null,
   onError,
 }: GoogleSignInButtonProps) {
   const router = useRouter();
@@ -281,8 +281,16 @@ export default function GoogleSignInButton({
           new Event("gotfit:auth")
         );
 
+        const safeRedirect =
+          typeof redirectTo === "string" &&
+          redirectTo.startsWith("/") &&
+          !redirectTo.startsWith("//") &&
+          !redirectTo.includes("\\")
+            ? redirectTo
+            : null;
+
         router.replace(
-          getAuthDestination(result.user, window.location.search)
+          safeRedirect || getPostAuthRoute(result.user)
         );
 
         router.refresh();
@@ -297,7 +305,7 @@ export default function GoogleSignInButton({
         setLoading(false);
       }
     },
-    [flow, onError, role, router]
+    [flow, onError, redirectTo, role, router]
   );
 
   const initializeGoogleButton =

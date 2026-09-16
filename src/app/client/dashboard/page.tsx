@@ -174,7 +174,6 @@ export default function ClientDashboardPage() {
       <Header />
       <main className="min-h-screen bg-[#FFF7ED] px-4 pb-16 pt-36 text-slate-950">
         <div className="mx-auto max-w-7xl">
-          <Link href="/annonces/mes-annonces" className="gotfit-button gotfit-button-dark mb-6">Mes annonces : voir et modifier</Link>
           <section className="overflow-hidden rounded-[2.5rem] bg-slate-950 p-6 text-white shadow-2xl sm:p-10">
             <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-end">
               <div>
@@ -204,10 +203,11 @@ export default function ClientDashboardPage() {
             </div>
           </section>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
             {[
               ["/annonces", Sparkles, "Réserver", "Trouver une prestation"],
               ["/annonces/nouvelle", Megaphone, "Publier", "Rechercher un coach"],
+              ["/annonces/mes-annonces", Megaphone, "Mes annonces", "Voir et modifier mes demandes"],
               ["/reservations", CreditCard, "Paiements", "Suivre mes réservations"],
               ["/planning", CalendarCheck, "Planning", "Voir mes rendez-vous"],
               ["/visio", Video, "Visio", "Rejoindre une séance"],

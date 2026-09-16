@@ -195,7 +195,7 @@ export default function NewCoachAnnoncePage() {
       title.trim().length >= 5,
       description.trim().length >= 30,
       Boolean(category),
-      Number(price) >= 0 && price !== "",
+      Number(price) > 0 && price !== "",
       Number(duration) >= 15,
       selectedDays.length > 0,
       slots.some((slot) => slot.start && slot.end && slot.end > slot.start),
@@ -298,8 +298,8 @@ export default function NewCoachAnnoncePage() {
       nextErrors.category = "Choisissez une catégorie.";
     }
 
-    if (price === "" || Number(price) < 0 || !Number.isFinite(Number(price))) {
-      nextErrors.price = "Indiquez un tarif valide.";
+    if (price === "" || Number(price) <= 0 || !Number.isFinite(Number(price))) {
+      nextErrors.price = "Indiquez un tarif supérieur à 0 €.";
     }
 
     if (

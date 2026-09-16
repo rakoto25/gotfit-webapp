@@ -32,6 +32,7 @@ import {
   getCoachExperience,
   getCoachSpeciality,
   getIntervenantPhoto,
+  getIntervenantName,
   getIntervenantVideo,
   getLocation,
   getRating,
@@ -482,7 +483,7 @@ export default function IntervenantsPage() {
                             {photo ? (
                               <img
                                 src={photo}
-                                alt={intervenant.name || "Intervenant Gotfit"}
+                                alt={getIntervenantName(intervenant)}
                                 className="h-full w-full object-cover"
                               />
                             ) : (
@@ -499,7 +500,7 @@ export default function IntervenantsPage() {
                         </div>
 
                         <h3 className="text-2xl font-black tracking-tight text-slate-950">
-                          {intervenant.name || "Intervenant Gotfit"}
+                          {getIntervenantName(intervenant)}
                         </h3>
 
                         <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-500">

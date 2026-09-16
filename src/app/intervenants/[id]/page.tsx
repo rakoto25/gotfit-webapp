@@ -32,6 +32,7 @@ import {
   getCoachSpeciality,
   getCoachTitle,
   getIntervenantCover,
+  getIntervenantName,
   getIntervenantPhoto,
   getIntervenantVideo,
   getLocation,
@@ -46,11 +47,15 @@ import {
 } from "@/lib/intervenants";
 import {
   canReviewReservation,
+  fetchAnnonces,
   fetchClientReservations,
   fetchIntervenantReviews,
   formatDate,
+  formatMoney,
+  getAnnonceTitle,
   getAssetUrl,
   submitReservationReview,
+  type Annonce,
   type Reservation,
   type Review,
 } from "@/lib/marketplace";
@@ -243,6 +248,7 @@ export default function IntervenantDetailPage() {
   }, [params]);
 
   const [intervenant, setIntervenant] = useState<Intervenant | null>(null);
+  const [coachAnnonces, setCoachAnnonces] = useState<Annonce[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -296,6 +302,33 @@ export default function IntervenantDetailPage() {
 
     loadIntervenant();
 
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    let mounted = true;
+
+    async function loadCoachAnnonces() {
+      try {
+        const items = (await fetchAnnonces()).filter((annonce) => {
+          const ownerId = annonce.intervenant?.id || annonce.user?.id || annonce.user_id;
+          return (
+            String(ownerId || "") === String(id) &&
+            annonce.announcement_type !== "client_request"
+          );
+        });
+
+        if (mounted) setCoachAnnonces(items);
+      } catch {
+        if (mounted) setCoachAnnonces([]);
+      }
+    }
+
+    void loadCoachAnnonces();
     return () => {
       mounted = false;
     };
@@ -533,7 +566,7 @@ export default function IntervenantDetailPage() {
                   {cover ? (
                     <img
                       src={cover}
-                      alt={`Couverture ${intervenant.name || "intervenant"}`}
+                      alt={`Couverture ${getIntervenantName(intervenant)}`}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -552,7 +585,7 @@ export default function IntervenantDetailPage() {
                         {photo ? (
                           <img
                             src={photo}
-                            alt={intervenant.name || "Intervenant Gotfit"}
+                            alt={getIntervenantName(intervenant)}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -576,7 +609,7 @@ export default function IntervenantDetailPage() {
                         </div>
 
                         <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
-                          {intervenant.name || "Intervenant Gotfit"}
+                          {getIntervenantName(intervenant)}
                         </h1>
 
                         <p className="mt-3 text-base font-bold text-white/80">
@@ -722,7 +755,7 @@ export default function IntervenantDetailPage() {
                       </span>
 
                       <h2 className="text-3xl font-black tracking-tight">
-                        À propos de {intervenant.name || "cet intervenant"}
+                        À propos de {getIntervenantName(intervenant)}
                       </h2>
 
                       <p className="mt-5 whitespace-pre-line text-base font-semibold leading-8 text-slate-600">
@@ -749,6 +782,53 @@ export default function IntervenantDetailPage() {
                           </InfoPill>
                         )}
                       </div>
+                    </div>
+
+                    <div className="mt-6 rounded-[2rem] border border-orange-100 bg-white p-6 shadow-sm sm:p-8">
+                      <div className="flex flex-wrap items-end justify-between gap-4">
+                        <div>
+                          <span className="mb-4 inline-flex rounded-full bg-orange-50 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-orange-700">
+                            Prestations & tarifs
+                          </span>
+                          <h2 className="text-2xl font-black tracking-tight">
+                            Offres publiées par ce coach
+                          </h2>
+                        </div>
+                        <Link
+                          href={getProtectedUrl(reservationUrl)}
+                          className="text-sm font-black text-orange-700"
+                        >
+                          Réserver une prestation
+                        </Link>
+                      </div>
+
+                      {coachAnnonces.length ? (
+                        <div className="mt-5 grid gap-3">
+                          {coachAnnonces.map((annonce) => (
+                            <Link
+                              key={annonce.id}
+                              href={`/annonces/${annonce.id}`}
+                              className="flex flex-col gap-3 rounded-2xl bg-orange-50 p-5 transition hover:bg-orange-100 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div>
+                                <strong className="block text-base font-black text-slate-950">
+                                  {getAnnonceTitle(annonce)}
+                                </strong>
+                                <span className="mt-1 block text-xs font-bold text-slate-500">
+                                  En ligne · {annonce.duration || 60} min
+                                </span>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">
+                                {formatMoney(annonce.price)}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-5 rounded-2xl bg-orange-50 px-5 py-4 text-sm font-semibold leading-7 text-slate-600">
+                          Ce coach n’a pas encore de prestation publiée avec un tarif disponible.
+                        </p>
+                      )}
                     </div>
 
                     {video && (
@@ -826,7 +906,7 @@ export default function IntervenantDetailPage() {
                             Avis clients
                           </span>
                           <h2 className="text-3xl font-black tracking-tight">
-                            Retours sur {intervenant.name || "cet intervenant"}
+                            Retours sur {getIntervenantName(intervenant)}
                           </h2>
                           <p className="mt-3 text-sm font-semibold leading-7 text-slate-500">
                             Les avis affiches proviennent des reservations Gotfit

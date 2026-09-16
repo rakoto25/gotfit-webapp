@@ -12,6 +12,7 @@ export type ApiEnvelope<T> = T & {
 export type GotfitUser = {
   id: number;
   name: string;
+  display_name?: string | null;
   email?: string | null;
   phone?: string | null;
   bio?: string | null;
@@ -44,8 +45,6 @@ export type Review = {
 };
 
 export type Annonce = {
-  available_days?: string[] | null;
-  available_hours?: string[] | null;
   id: number;
   titre?: string | null;
   title?: string | null;
@@ -66,7 +65,10 @@ export type Annonce = {
   user_id?: number | null;
   intervenant?: GotfitUser | null;
   user?: GotfitUser | null;
+  available_days?: string[] | null;
+  available_hours?: string[] | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type Reservation = {
@@ -289,6 +291,15 @@ export async function fetchAnnonces() {
   return normalizeArray<Annonce>(payload, ["annonces"]);
 }
 
+export async function fetchMyAnnonces() {
+  const payload = await apiRequest<{
+    annonces?: Annonce[];
+    data?: Annonce[];
+  }>("/annonces/my", { auth: true });
+
+  return normalizeArray<Annonce>(payload, ["annonces"]);
+}
+
 export async function fetchAnnonce(id: string | number) {
   try {
     const payload = await apiRequest<{
@@ -315,16 +326,6 @@ export async function fetchAnnonce(id: string | number) {
   }
 }
 
-export async function fetchMyAnnonces() {
-  const payload = await apiRequest<{ annonces: Annonce[] }>("/annonces/my", { auth: true });
-  return payload.annonces;
-}
-
-export async function updateAnnonce(id: string | number, body: FormData) {
-  body.set("_method", "PUT");
-  return apiRequest<{ annonce: Annonce }>(`/annonces/${id}`, { method: "POST", auth: true, body });
-}
-
 export async function createAnnonce(body: FormData) {
   const payload = await apiRequest<{
     annonce?: Annonce;
@@ -349,6 +350,38 @@ export async function createAnnonce(body: FormData) {
       payload.message ||
       "Annonce créée. Elle sera publiée après validation de l’administration.",
   };
+}
+
+export async function updateAnnonce(id: string | number, body: FormData) {
+  const payload = await apiRequest<{
+    annonce?: Annonce;
+    data?: Annonce;
+  }>(`/annonces/${id}`, {
+    // POST multipart évite les limites PHP sur l’analyse de FormData avec PUT.
+    method: "POST",
+    auth: true,
+    body,
+  });
+
+  const annonce = payload.annonce || payload.data;
+
+  if (!annonce?.id) {
+    throw new Error("L’annonce a été modifiée, mais la réponse de l’API est incomplète.");
+  }
+
+  return {
+    annonce,
+    message:
+      payload.message ||
+      "Annonce modifiée. Elle attend une nouvelle validation de l’administration.",
+  };
+}
+
+export async function deleteAnnonce(id: string | number) {
+  return apiRequest<Record<string, never>>(`/annonces/${id}`, {
+    method: "DELETE",
+    auth: true,
+  });
 }
 
 export async function reserveAnnonce(

@@ -23,7 +23,6 @@ import {
   X,
 } from "lucide-react";
 
-import { getSafeRedirect } from "@/lib/auth-redirect";
 import AuthShell from "@/components/auth/AuthShell";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
@@ -59,6 +58,31 @@ type LoginResponse = {
 /* =========================================================
    OUTILS
 ========================================================= */
+
+function getSafeRedirect(
+  value: string | null,
+): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const redirect =
+    value.trim();
+
+  /*
+   * Autorise uniquement les routes internes.
+   * Cela évite les redirections vers un domaine externe.
+   */
+  if (
+    !redirect.startsWith("/") ||
+    redirect.startsWith("//") ||
+    redirect.includes("\\")
+  ) {
+    return null;
+  }
+
+  return redirect;
+}
 
 function getFirstValidationError(
   errors?: Record<
@@ -363,15 +387,8 @@ function LoginPageContent() {
     <AuthShell
       eyebrow="Ravi de vous revoir"
       title="Connectez-vous en un clic."
-      description="Utilisez votre compte Google ou votre adresse email pour accéder à votre espace Gotfit."
+      description="Connectez-vous à Gotfit, la plateforme dédiée aux prestations de coaching réalisées exclusivement en ligne."
     >
-      <div className="mb-5 rounded-2xl bg-[var(--brand-soft)] p-5 text-[var(--ink)]">
-        <p className="font-black">Des prestations exclusivement EN LIGNE</p>
-        <p className="mt-2 text-sm">Retrouvez votre coach en visioconférence, où que vous soyez.</p>
-        <p className="mt-4 font-black">Clients : profitez des offres de cashback GotFit</p>
-        <p className="mt-1 text-sm">Consultez les conditions et l’éligibilité des offres auprès de GotFit avant de réserver.</p>
-        <Link href="/contact" className="mt-2 inline-block text-sm font-bold underline">En savoir plus sur le cashback</Link>
-      </div>
       {/* Confirmation après changement du mot de passe */}
 
       {passwordResetSuccess && (
@@ -416,11 +433,31 @@ function LoginPageContent() {
         </div>
       )}
 
+      <div className="mb-5 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-orange-700">
+            100 % en ligne
+          </p>
+          <p className="mt-1 text-sm font-bold leading-6 text-slate-700">
+            Toutes les prestations Gotfit se déroulent en visioconférence.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-700">
+            Cashback client
+          </p>
+          <p className="mt-1 text-sm font-bold leading-6 text-slate-700">
+            Profitez du cashback lorsqu’il est proposé, selon les conditions affichées dans votre espace.
+          </p>
+        </div>
+      </div>
+
       {/* Connexion Google */}
 
       <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
         <GoogleSignInButton
           flow="login"
+          redirectTo={requestedRedirect}
           onError={(message) => {
             setError(message);
           }}
@@ -622,7 +659,7 @@ function LoginPageContent() {
         Première visite ?{" "}
 
         <Link
-          href={requestedRedirect ? `/auth/register?redirect=${encodeURIComponent(requestedRedirect)}` : "/auth/register"}
+          href="/auth/register"
           className="font-black text-[var(--ink)] underline decoration-[var(--brand)] decoration-2 underline-offset-4"
         >
           Créer mon compte

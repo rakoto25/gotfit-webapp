@@ -50,6 +50,8 @@ function isClientRequest(annonce: Annonce | null) {
 
 function getPublisherName(annonce: Annonce | null) {
   return (
+    annonce?.intervenant?.display_name ||
+    annonce?.user?.display_name ||
     annonce?.intervenant?.name ||
     annonce?.user?.name ||
     "Intervenant Gotfit"
@@ -74,8 +76,74 @@ function getImage(annonce: Annonce | null) {
   return getAssetUrl(annonce?.image_url || annonce?.image);
 }
 
-function getToday() {
-  return new Date().toISOString().slice(0, 10);
+const weekdayKeys = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+function toLocalDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getAvailableDates(annonce?: Annonce | null, horizonDays = 90) {
+  const days = new Set((annonce?.available_days || []).map((day) => day.toLowerCase()));
+  if (!days.size) return [];
+
+  const result: string[] = [];
+  const start = new Date();
+  start.setHours(12, 0, 0, 0);
+
+  for (let offset = 0; offset <= horizonDays; offset += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + offset);
+    if (days.has(weekdayKeys[date.getDay()])) result.push(toLocalDateValue(date));
+  }
+
+  return result;
+}
+
+function minutesFromTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function timeFromMinutes(value: number) {
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+
+function getAvailableStartTimes(annonce?: Annonce | null) {
+  if (!annonce) return [];
+  const duration = Math.max(15, Number(annonce.duration || 60));
+  const result = new Set<string>();
+
+  for (const rawRange of annonce.available_hours || []) {
+    const [start, end] = String(rawRange).split("-");
+    if (!/^\d{2}:\d{2}$/.test(start || "") || !/^\d{2}:\d{2}$/.test(end || "")) continue;
+    const startMinutes = minutesFromTime(start);
+    const endMinutes = minutesFromTime(end);
+    for (let current = startMinutes; current + duration <= endMinutes; current += duration) {
+      result.add(timeFromMinutes(current));
+    }
+  }
+
+  return Array.from(result).sort();
+}
+
+function formatSlotDate(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -176,8 +244,8 @@ export default function AnnonceDetailPage() {
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [payment, setPayment] = useState<PaymentIntentPayload | null>(null);
 
-  const [reservationDate, setReservationDate] = useState(getToday());
-  const [reservationTime, setReservationTime] = useState("10:00");
+  const [reservationDate, setReservationDate] = useState("");
+  const [reservationTime, setReservationTime] = useState("");
   const [guests, setGuests] = useState(1);
   const [note, setNote] = useState("");
 
@@ -187,6 +255,15 @@ export default function AnnonceDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const image = useMemo(() => getImage(annonce), [annonce]);
+  const availableDates = useMemo(() => getAvailableDates(annonce), [annonce]);
+  const availableStartTimes = useMemo(() => getAvailableStartTimes(annonce), [annonce]);
+
+  useEffect(() => {
+    setReservationDate(availableDates[0] || "");
+    setReservationTime(availableStartTimes[0] || "");
+    setReservation(null);
+    setPayment(null);
+  }, [annonce?.id, availableDates, availableStartTimes]);
 
   useEffect(() => {
     async function loadAnnonce() {
@@ -209,7 +286,18 @@ export default function AnnonceDetailPage() {
     event.preventDefault();
 
     if (!getToken()) {
-      router.push("/auth/login");
+      const target = `/annonces/${annonceId}`;
+      router.push(`/auth/login?redirect=${encodeURIComponent(target)}`);
+      return;
+    }
+
+    if (!reservationDate || !availableDates.includes(reservationDate)) {
+      setError("Choisissez une date proposée par le coach.");
+      return;
+    }
+
+    if (!reservationTime || !availableStartTimes.includes(reservationTime)) {
+      setError("Choisissez un créneau proposé par le coach.");
       return;
     }
 
@@ -440,6 +528,12 @@ export default function AnnonceDetailPage() {
                 </div>
 
                 {!payment && (
+                  <>
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-xs font-semibold leading-6 text-slate-600">
+                    <strong className="block text-sm font-black text-slate-900">Créneaux du coach uniquement</strong>
+                    Choisissez l’une des dates et heures proposées ci-dessous. Le prix de la prestation et les frais applicables sont présentés avant le paiement Stripe.
+                    <Link href="/aide#paiement" className="mt-2 block font-black text-orange-700">Comprendre le paiement</Link>
+                  </div>
                   <form onSubmit={handleReserve} className="grid gap-4">
                     <div>
                       <label className="mb-2 block text-sm font-black text-slate-700">
@@ -447,16 +541,18 @@ export default function AnnonceDetailPage() {
                       </label>
                       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <CalendarDays size={18} className="text-slate-400" />
-                        <input
-                          type="date"
-                          min={getToday()}
+                        <select
                           value={reservationDate}
-                          onChange={(event) =>
-                            setReservationDate(event.target.value)
-                          }
+                          onChange={(event) => setReservationDate(event.target.value)}
                           className="w-full bg-transparent text-sm font-semibold outline-none"
                           required
-                        />
+                          disabled={!availableDates.length}
+                        >
+                          {!availableDates.length && <option value="">Aucune date disponible</option>}
+                          {availableDates.map((date) => (
+                            <option key={date} value={date}>{formatSlotDate(date)}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
@@ -465,15 +561,18 @@ export default function AnnonceDetailPage() {
                         <label className="mb-2 block text-sm font-black text-slate-700">
                           Heure
                         </label>
-                        <input
-                          type="time"
+                        <select
                           value={reservationTime}
-                          onChange={(event) =>
-                            setReservationTime(event.target.value)
-                          }
+                          onChange={(event) => setReservationTime(event.target.value)}
                           className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none"
                           required
-                        />
+                          disabled={!availableStartTimes.length}
+                        >
+                          {!availableStartTimes.length && <option value="">Aucun créneau</option>}
+                          {availableStartTimes.map((time) => (
+                            <option key={time} value={time}>{time} · {annonce.duration || 60} min</option>
+                          ))}
+                        </select>
                       </div>
 
                       <div>
@@ -509,7 +608,7 @@ export default function AnnonceDetailPage() {
 
                     <button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submitting || !reservationDate || !reservationTime || !availableDates.length || !availableStartTimes.length}
                       className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {submitting ? (
@@ -520,6 +619,7 @@ export default function AnnonceDetailPage() {
                       Réserver et payer
                     </button>
                   </form>
+                  </>
                 )}
 
                 {payment && reservation && (
