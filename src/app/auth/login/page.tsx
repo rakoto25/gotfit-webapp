@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 
+import { getSafeRedirect } from "@/lib/auth-redirect";
 import AuthShell from "@/components/auth/AuthShell";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
@@ -58,31 +59,6 @@ type LoginResponse = {
 /* =========================================================
    OUTILS
 ========================================================= */
-
-function getSafeRedirect(
-  value: string | null,
-): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const redirect =
-    value.trim();
-
-  /*
-   * Autorise uniquement les routes internes.
-   * Cela évite les redirections vers un domaine externe.
-   */
-  if (
-    !redirect.startsWith("/") ||
-    redirect.startsWith("//") ||
-    redirect.includes("\\")
-  ) {
-    return null;
-  }
-
-  return redirect;
-}
 
 function getFirstValidationError(
   errors?: Record<
@@ -389,6 +365,13 @@ function LoginPageContent() {
       title="Connectez-vous en un clic."
       description="Utilisez votre compte Google ou votre adresse email pour accéder à votre espace Gotfit."
     >
+      <div className="mb-5 rounded-2xl bg-[var(--brand-soft)] p-5 text-[var(--ink)]">
+        <p className="font-black">Des prestations exclusivement EN LIGNE</p>
+        <p className="mt-2 text-sm">Retrouvez votre coach en visioconférence, où que vous soyez.</p>
+        <p className="mt-4 font-black">Clients : profitez des offres de cashback GotFit</p>
+        <p className="mt-1 text-sm">Consultez les conditions et l’éligibilité des offres auprès de GotFit avant de réserver.</p>
+        <Link href="/contact" className="mt-2 inline-block text-sm font-bold underline">En savoir plus sur le cashback</Link>
+      </div>
       {/* Confirmation après changement du mot de passe */}
 
       {passwordResetSuccess && (
@@ -639,7 +622,7 @@ function LoginPageContent() {
         Première visite ?{" "}
 
         <Link
-          href="/auth/register"
+          href={requestedRedirect ? `/auth/register?redirect=${encodeURIComponent(requestedRedirect)}` : "/auth/register"}
           className="font-black text-[var(--ink)] underline decoration-[var(--brand)] decoration-2 underline-offset-4"
         >
           Créer mon compte

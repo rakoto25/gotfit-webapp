@@ -1169,6 +1169,9 @@ export default function IntervenantDashboardPage() {
                   >
                     Créer une annonce
                   </Link>
+                  <Link href="/annonces/mes-annonces" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-slate-950">
+                    Voir et modifier mes annonces
+                  </Link>
 
                   <Link
                     href="/reservations"

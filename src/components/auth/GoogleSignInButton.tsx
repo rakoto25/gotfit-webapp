@@ -1,5 +1,7 @@
 "use client";
 
+import { getAuthDestination } from "@/lib/auth-redirect";
+
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import {
@@ -14,7 +16,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { getPostAuthRoute, saveAuth } from "@/lib/auth";
+import { saveAuth } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/api-config";
 import type { User } from "@/types/auth";
 
@@ -280,9 +282,7 @@ export default function GoogleSignInButton({
         );
 
         router.replace(
-          flow === "register"
-            ? "/profile"
-            : getPostAuthRoute(result.user)
+          getAuthDestination(result.user, window.location.search)
         );
 
         router.refresh();

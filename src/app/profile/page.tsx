@@ -2445,9 +2445,9 @@ export default function ProfilePage() {
           </div>
 
           <div className="px-5 pb-8 sm:px-8">
-            <div className="-mt-16 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-2xl">
+            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
+                <div className="relative -mt-16 h-32 w-32 shrink-0 overflow-hidden rounded-[2rem] border-4 border-white bg-orange-100 shadow-2xl">
                   {photoPreview ? (
                     <img
                       src={
@@ -2492,7 +2492,7 @@ export default function ProfilePage() {
                   </label>
                 </div>
 
-                <div className="pb-1">
+                <div className="min-w-0 pb-1">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
                       {mainRole}
@@ -2511,7 +2511,7 @@ export default function ProfilePage() {
                     )}
                   </div>
 
-                  <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                  <h1 className="break-words text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
                     {user?.name ||
                       "Utilisateur Gotfit"}
                   </h1>

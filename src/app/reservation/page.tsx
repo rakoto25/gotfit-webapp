@@ -1,5 +1,6 @@
 "use client";
 
+import { availableTimes, weekDays } from "@/lib/availability";
 import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -292,6 +293,9 @@ function ReservationContent() {
     return annonces.find((item) => String(item.id) === selectedAnnonceId) || null;
   }, [annonces, selectedAnnonceId]);
 
+  const slots = availableTimes(selectedAnnonce, reservationDate);
+  const selectedTime = slots.includes(reservationTime) ? reservationTime : "";
+
   const stripeOptions = useMemo<StripeElementsOptions | undefined>(() => {
     if (!payment?.clientSecret) return undefined;
 
@@ -362,6 +366,10 @@ function ReservationContent() {
       return;
     }
 
+    if (!selectedTime) {
+      setError("Choisissez un créneau parmi les disponibilités du coach.");
+      return;
+    }
     if (submitting) return;
 
     try {
@@ -372,7 +380,7 @@ function ReservationContent() {
 
       const createdReservation = await reserveAnnonce(selectedAnnonce.id, {
         reservation_date: reservationDate,
-        reservation_time: reservationTime,
+        reservation_time: selectedTime,
         guests,
         note: note.trim(),
       });
@@ -575,6 +583,20 @@ function ReservationContent() {
 
                 {!payment && (
                   <form onSubmit={handleReserve} className="grid gap-4">
+                    <p className="text-sm font-semibold text-[var(--muted)]">
+                      Jours proposés : {weekDays.filter(([day]) => selectedAnnonce?.available_days?.includes(day)).map(([, label]) => label).join(", ") || "Aucune disponibilité publiée"}.
+                      {" "}Horaires : {selectedAnnonce?.available_hours?.join(", ") || "à préciser par le coach"}.
+                    </p>
+                    {!slots.length && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm">Aucun créneau disponible à cette date. Choisissez un autre jour proposé par le coach.</p>}
+                    <details className="rounded-2xl border border-[var(--line)] p-4">
+                      <summary className="font-black">Comprendre le paiement</summary>
+                      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6">
+                        <li>Choisissez une séance et un créneau disponible. Le tarif affiché est le prix de la séance en euros.</li>
+                        <li>Avant de confirmer le paiement, le récapitulatif présente le prix, les frais de service et le montant total.</li>
+                        <li>Payez par carte via Stripe. Le coach doit ensuite confirmer la réservation.</li>
+                        <li>Après la séance en ligne, confirmez sa réalisation depuis vos réservations. Le versement au coach suit la validation de la prestation. En cas de problème, signalez-le depuis votre réservation.</li>
+                      </ol>
+                    </details>
                     <div>
                       <label className="mb-2 block text-sm font-black text-slate-700">
                         Date
@@ -600,15 +622,18 @@ function ReservationContent() {
                       </label>
                       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <Clock3 size={18} className="text-slate-400" />
-                        <input
-                          type="time"
-                          value={reservationTime}
+                        <select
+                          aria-label="Heure disponible"
+                          value={selectedTime}
                           onChange={(event) =>
                             setReservationTime(event.target.value)
                           }
                           className="w-full bg-transparent text-sm font-semibold outline-none"
                           required
-                        />
+                         >
+                          <option value="">Choisir un créneau</option>
+                          {slots.map(time => <option key={time} value={time}>{time}</option>)}
+                        </select>
                       </div>
                     </div>
 
@@ -643,7 +668,7 @@ function ReservationContent() {
 
                     <button
                       type="submit"
-                      disabled={submitting || !selectedAnnonce}
+                      disabled={submitting || !selectedAnnonce || !selectedTime}
                       className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {submitting ? (

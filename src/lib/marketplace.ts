@@ -44,6 +44,8 @@ export type Review = {
 };
 
 export type Annonce = {
+  available_days?: string[] | null;
+  available_hours?: string[] | null;
   id: number;
   titre?: string | null;
   title?: string | null;
@@ -311,6 +313,16 @@ export async function fetchAnnonce(id: string | number) {
 
     return annonce;
   }
+}
+
+export async function fetchMyAnnonces() {
+  const payload = await apiRequest<{ annonces: Annonce[] }>("/annonces/my", { auth: true });
+  return payload.annonces;
+}
+
+export async function updateAnnonce(id: string | number, body: FormData) {
+  body.set("_method", "PUT");
+  return apiRequest<{ annonce: Annonce }>(`/annonces/${id}`, { method: "POST", auth: true, body });
 }
 
 export async function createAnnonce(body: FormData) {

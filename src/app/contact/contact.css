@@ -546,3 +546,14 @@
     width: 100%;
   }
 }
+/* Shared GotFit typography and palette, including native form controls. */
+.gotfit-contact { font-family: inherit; background: var(--canvas); color: var(--ink); }
+.gotfit-contact input, .gotfit-contact textarea, .gotfit-contact select,
+.gotfit-contact button { font-family: inherit; }
+.gotfit-contact h1, .gotfit-contact h2, .gotfit-contact h3 { font-weight: 900; color: var(--ink); }
+.contact-hero { padding-top: 132px; background: var(--canvas); }
+.contact-hero h1 { font-size: clamp(2.25rem, 5vw, 4rem); line-height: 1.1; letter-spacing: -0.04em; }
+.contact-hero h1 span { color: var(--brand-strong); text-shadow: none; }
+.contact-hero p { color: var(--muted); }
+.contact-primary-link { background: var(--ink); color: white; }
+.contact-secondary-link { color: var(--ink); border-color: var(--line); }
