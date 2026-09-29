@@ -199,11 +199,10 @@ export default function NewCoachAnnoncePage() {
       Number(duration) >= 15,
       selectedDays.length > 0,
       slots.some((slot) => slot.start && slot.end && slot.end > slot.start),
-      Boolean(image),
     ];
 
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }, [category, description, duration, image, price, selectedDays, slots, title]);
+  }, [category, description, duration, price, selectedDays, slots, title]);
 
   const validSlots = useMemo(
     () =>
@@ -318,9 +317,7 @@ export default function NewCoachAnnoncePage() {
       nextErrors.slots = "Ajoutez au moins un créneau avec une heure de fin valide.";
     }
 
-    if (!image) {
-      nextErrors.image = "Ajoutez une photo de couverture à votre annonce.";
-    } else {
+    if (image) {
       const imageError = validateImage(image);
       if (imageError) nextErrors.image = imageError;
     }
@@ -602,7 +599,7 @@ export default function NewCoachAnnoncePage() {
                               setPrice(event.target.value);
                               updateFieldError("price");
                             }}
-                            className="gotfit-input pl-11"
+                            className="gotfit-input gotfit-input-leading-icon"
                             placeholder="45,00"
                             aria-invalid={Boolean(errors.price)}
                           />
@@ -624,7 +621,7 @@ export default function NewCoachAnnoncePage() {
                               setDuration(event.target.value);
                               updateFieldError("duration");
                             }}
-                            className="gotfit-input pl-11 pr-24"
+                            className="gotfit-input gotfit-input-leading-icon gotfit-input-leading-icon-with-unit"
                             aria-invalid={Boolean(errors.duration)}
                           />
                           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
@@ -737,11 +734,16 @@ export default function NewCoachAnnoncePage() {
                         04
                       </span>
                       <div>
-                        <h2 id="section-image" className="text-xl font-black text-[var(--ink)]">
-                          Photo de couverture
-                        </h2>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 id="section-image" className="text-xl font-black text-[var(--ink)]">
+                            Photo de couverture
+                          </h2>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-slate-500">
+                            Facultatif
+                          </span>
+                        </div>
                         <p className="mt-1 text-sm text-slate-500">
-                          Une image nette aide les clients à comprendre votre offre.
+                          Vous pouvez publier sans photo et en ajouter une plus tard.
                         </p>
                       </div>
                     </div>
@@ -767,7 +769,7 @@ export default function NewCoachAnnoncePage() {
                         Déposez une image ici
                       </p>
                       <p className="mt-1 text-xs font-semibold text-slate-500">
-                        JPG, PNG ou WebP · 4 Mo maximum
+                        Facultatif · JPG, PNG ou WebP · 4 Mo maximum
                       </p>
                       <button
                         type="button"
@@ -824,7 +826,7 @@ export default function NewCoachAnnoncePage() {
                       <div className="grid h-full place-items-center text-center text-slate-400">
                         <div>
                           <ImageIcon className="mx-auto" size={36} />
-                          <p className="mt-2 text-xs font-bold">Aperçu de la photo</p>
+                          <p className="mt-2 text-xs font-bold">Photo facultative</p>
                         </div>
                       </div>
                     )}
@@ -906,7 +908,7 @@ export default function NewCoachAnnoncePage() {
                 <section className="flex items-start gap-3 border border-[var(--line)] bg-white p-5">
                   <Sparkles className="mt-0.5 shrink-0 text-[var(--brand-strong)]" size={19} />
                   <p className="text-xs font-semibold leading-5 text-slate-600">
-                    Utilisez une photo lumineuse et décrivez précisément le niveau, le matériel et les objectifs de la séance.
+                    Si vous ajoutez une photo, choisissez une image lumineuse. Décrivez précisément le niveau, le matériel et les objectifs de la séance.
                   </p>
                 </section>
               </aside>
