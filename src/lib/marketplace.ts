@@ -54,6 +54,7 @@ export type Annonce = {
   type_prestation?: string | null;
   price?: string | number | null;
   duration?: string | number | null;
+  max_participants?: string | number | null;
   is_online?: boolean | number | null;
   location?: string | null;
   city?: string | null;
@@ -70,6 +71,12 @@ export type Annonce = {
   created_at?: string | null;
   updated_at?: string | null;
 };
+
+export function getMaxParticipants(annonce?: Annonce | null): number {
+  const value = Number(annonce?.max_participants || 2);
+
+  return Math.max(1, Math.min(4, Number.isFinite(value) ? Math.trunc(value) : 2));
+}
 
 export type Reservation = {
   id: number;
@@ -389,7 +396,6 @@ export async function reserveAnnonce(
   body: {
     reservation_date: string;
     reservation_time: string;
-    guests: number;
     note?: string;
   }
 ) {
@@ -444,7 +450,6 @@ export async function reserveAndCreatePaymentIntent(
   body: {
     reservation_date: string;
     reservation_time: string;
-    guests: number;
     note?: string;
   }
 ) {

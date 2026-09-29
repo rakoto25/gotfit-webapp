@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Star,
   UserRound,
+  Users,
   Video,
 } from "lucide-react";
 
@@ -54,6 +55,7 @@ import {
   formatMoney,
   getAnnonceTitle,
   getAssetUrl,
+  getMaxParticipants,
   submitReservationReview,
   type Annonce,
   type Reservation,
@@ -814,8 +816,11 @@ export default function IntervenantDetailPage() {
                                 <strong className="block text-base font-black text-slate-950">
                                   {getAnnonceTitle(annonce)}
                                 </strong>
-                                <span className="mt-1 block text-xs font-bold text-slate-500">
-                                  En ligne · {annonce.duration || 60} min
+                                <span className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+                                  <span>En ligne · {annonce.duration || 60} min</span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Users size={14} /> {getMaxParticipants(annonce)} coaché{getMaxParticipants(annonce) > 1 ? "s" : ""} max
+                                  </span>
                                 </span>
                               </div>
                               <span className="shrink-0 rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">

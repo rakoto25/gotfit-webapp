@@ -39,6 +39,7 @@ import {
   formatMoney,
   getAnnonceDescription,
   getAnnonceTitle,
+  getMaxParticipants,
   reserveAnnonce,
   syncPaymentStatus,
 } from "@/lib/marketplace";
@@ -375,7 +376,6 @@ function ReservationContent() {
   const [payment, setPayment] = useState<PaymentIntentPayload | null>(null);
   const [reservationDate, setReservationDate] = useState("");
   const [reservationTime, setReservationTime] = useState("");
-  const [guests, setGuests] = useState(1);
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -496,7 +496,6 @@ function ReservationContent() {
       const createdReservation = await reserveAnnonce(selectedAnnonce.id, {
         reservation_date: reservationDate,
         reservation_time: reservationTime,
-        guests,
         note: note.trim(),
       });
 
@@ -763,21 +762,14 @@ function ReservationContent() {
                       </p>
                     </div>
 
-                    <div>
-                      <label className="mb-2 block text-sm font-black text-slate-700">
-                        Nombre de personne(s)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={guests}
-                        onChange={(event) =>
-                          setGuests(Math.max(1, Number(event.target.value) || 1))
-                        }
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none focus:border-orange-400"
-                      />
-                    </div>
+                    {selectedAnnonce && (
+                      <div className="flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-900">
+                        <Users className="mt-0.5 shrink-0" size={18} />
+                        <span>
+                          Le coach accepte jusqu’à {getMaxParticipants(selectedAnnonce)} coaché{getMaxParticipants(selectedAnnonce) > 1 ? "s" : ""} sur ce créneau. Votre réservation correspond à une seule place.
+                        </span>
+                      </div>
+                    )}
 
                     <div>
                       <label className="mb-2 block text-sm font-black text-slate-700">

@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ import {
   formatMoney,
   getAnnonceDescription,
   getAnnonceTitle,
+  getMaxParticipants,
 } from "@/lib/marketplace";
 
 const statusLabels: Record<string, string> = {
@@ -203,6 +205,11 @@ export default function MyAnnouncementsPage() {
                     <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2">
                       <Clock3 size={14} /> {annonce.duration || 60} min
                     </span>
+                    {isCoachOffer(annonce) && (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2">
+                        <Users size={14} /> {getMaxParticipants(annonce)} coaché{getMaxParticipants(annonce) > 1 ? "s" : ""} max
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-auto flex flex-wrap gap-3 pt-7">

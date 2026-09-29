@@ -37,6 +37,7 @@ import {
   getAnnonceDescription,
   getAnnonceTitle,
   getAssetUrl,
+  getMaxParticipants,
   reserveAnnonce,
 } from "@/lib/marketplace";
 
@@ -246,7 +247,6 @@ export default function AnnonceDetailPage() {
 
   const [reservationDate, setReservationDate] = useState("");
   const [reservationTime, setReservationTime] = useState("");
-  const [guests, setGuests] = useState(1);
   const [note, setNote] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -310,7 +310,6 @@ export default function AnnonceDetailPage() {
       const createdReservation = await reserveAnnonce(annonceId, {
         reservation_date: reservationDate,
         reservation_time: reservationTime,
-        guests,
         note: note.trim(),
       });
 
@@ -400,6 +399,12 @@ export default function AnnonceDetailPage() {
                       <Clock3 size={16} />
                       {annonce.duration || 60} min
                     </span>
+                    {!isClientRequest(annonce) && (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-4 py-2">
+                        <Users size={16} />
+                        {getMaxParticipants(annonce)} coaché{getMaxParticipants(annonce) > 1 ? "s" : ""} max
+                      </span>
+                    )}
                     {annonce.is_online ? (
                       <span className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-white">
                         <Wifi size={16} />
@@ -531,7 +536,7 @@ export default function AnnonceDetailPage() {
                   <>
                   <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-xs font-semibold leading-6 text-slate-600">
                     <strong className="block text-sm font-black text-slate-900">Créneaux du coach uniquement</strong>
-                    Choisissez l’une des dates et heures proposées ci-dessous. Le prix de la prestation et les frais applicables sont présentés avant le paiement Stripe.
+                    Choisissez l’une des dates et heures proposées ci-dessous. Cette séance accepte jusqu’à {getMaxParticipants(annonce)} coaché{getMaxParticipants(annonce) > 1 ? "s" : ""} par créneau. Le prix et les frais applicables sont présentés avant le paiement Stripe.
                     <Link href="/aide#paiement" className="mt-2 block font-black text-orange-700">Comprendre le paiement</Link>
                   </div>
                   <form onSubmit={handleReserve} className="grid gap-4">
@@ -556,41 +561,22 @@ export default function AnnonceDetailPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-2 block text-sm font-black text-slate-700">
-                          Heure
-                        </label>
-                        <select
-                          value={reservationTime}
-                          onChange={(event) => setReservationTime(event.target.value)}
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none"
-                          required
-                          disabled={!availableStartTimes.length}
-                        >
-                          {!availableStartTimes.length && <option value="">Aucun créneau</option>}
-                          {availableStartTimes.map((time) => (
-                            <option key={time} value={time}>{time} · {annonce.duration || 60} min</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="mb-2 block text-sm font-black text-slate-700">
-                          Personnes
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={guests}
-                          onChange={(event) =>
-                            setGuests(Number(event.target.value) || 1)
-                          }
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none"
-                          required
-                        />
-                      </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-black text-slate-700">
+                        Heure
+                      </label>
+                      <select
+                        value={reservationTime}
+                        onChange={(event) => setReservationTime(event.target.value)}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none"
+                        required
+                        disabled={!availableStartTimes.length}
+                      >
+                        {!availableStartTimes.length && <option value="">Aucun créneau</option>}
+                        {availableStartTimes.map((time) => (
+                          <option key={time} value={time}>{time} · {annonce.duration || 60} min</option>
+                        ))}
+                      </select>
                     </div>
 
                     <div>

@@ -10,6 +10,7 @@ import {
   Loader2,
   Save,
   ShieldCheck,
+  UsersRound,
   X,
 } from "lucide-react";
 
@@ -21,6 +22,7 @@ import {
   fetchMyAnnonces,
   getAnnonceDescription,
   getAnnonceTitle,
+  getMaxParticipants,
   updateAnnonce,
 } from "@/lib/marketplace";
 
@@ -62,6 +64,7 @@ export default function EditAnnouncementPage() {
   const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("60");
+  const [maxParticipants, setMaxParticipants] = useState("2");
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [hoursText, setHoursText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -107,6 +110,7 @@ export default function EditAnnouncementPage() {
         setCategory(found.category || "");
         setPrice(found.price === null || found.price === undefined ? "" : String(found.price));
         setDuration(String(found.duration || 60));
+        setMaxParticipants(String(getMaxParticipants(found)));
         setSelectedDays(found.available_days || []);
         setHoursText(rangesToText(found));
       } catch (caught) {
@@ -144,6 +148,10 @@ export default function EditAnnouncementPage() {
         setError("Le tarif coach doit être supérieur à 0 €.");
         return;
       }
+      if (!Number.isInteger(Number(maxParticipants)) || Number(maxParticipants) < 1 || Number(maxParticipants) > 4) {
+        setError("Choisissez entre 1 et 4 coachés maximum par créneau.");
+        return;
+      }
       if (!selectedDays.length) {
         setError("Sélectionnez au moins un jour disponible.");
         return;
@@ -167,6 +175,7 @@ export default function EditAnnouncementPage() {
       body.append("is_online", "1");
       body.append("location", "Visio GotFit");
       body.append("duration", String(Math.max(15, Number(duration) || 60)));
+      if (isCoachOffer) body.append("max_participants", maxParticipants);
 
       if (price.trim()) body.append("price", Number(price).toFixed(2));
       selectedDays.forEach((day) => body.append("available_days[]", day));
@@ -247,10 +256,25 @@ export default function EditAnnouncementPage() {
                   </label>
                 </div>
 
-                <label>
-                  <span className="mb-2 block text-sm font-black">Durée estimée (minutes)</span>
-                  <input className="gotfit-input" type="number" min={15} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />
-                </label>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <label>
+                    <span className="mb-2 block text-sm font-black">Durée estimée (minutes)</span>
+                    <input className="gotfit-input" type="number" min={15} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />
+                  </label>
+                  {isCoachOffer && (
+                    <label>
+                      <span className="mb-2 flex items-center gap-2 text-sm font-black">
+                        <UsersRound size={17} /> Coachés maximum par créneau
+                      </span>
+                      <select className="gotfit-input" value={maxParticipants} onChange={(e) => setMaxParticipants(e.target.value)}>
+                        <option value="1">1 coaché</option>
+                        <option value="2">2 coachés</option>
+                        <option value="3">3 coachés</option>
+                        <option value="4">4 coachés</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
 
                 <div>
                   <span className="mb-3 flex items-center gap-2 text-sm font-black"><CalendarDays size={17} /> Jours préférés / disponibles</span>

@@ -18,6 +18,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  UsersRound,
   X,
 } from "lucide-react";
 import {
@@ -51,6 +52,7 @@ type FormErrors = Partial<
     | "category"
     | "price"
     | "duration"
+    | "maxParticipants"
     | "days"
     | "slots"
     | "image",
@@ -147,6 +149,7 @@ export default function NewCoachAnnoncePage() {
   const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("60");
+  const [maxParticipants, setMaxParticipants] = useState("2");
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [slots, setSlots] = useState<TimeSlot[]>([
     { id: 1, start: "09:00", end: "12:00" },
@@ -197,12 +200,13 @@ export default function NewCoachAnnoncePage() {
       Boolean(category),
       Number(price) > 0 && price !== "",
       Number(duration) >= 15,
+      Number(maxParticipants) >= 1 && Number(maxParticipants) <= 4,
       selectedDays.length > 0,
       slots.some((slot) => slot.start && slot.end && slot.end > slot.start),
     ];
 
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }, [category, description, duration, price, selectedDays, slots, title]);
+  }, [category, description, duration, maxParticipants, price, selectedDays, slots, title]);
 
   const validSlots = useMemo(
     () =>
@@ -309,6 +313,14 @@ export default function NewCoachAnnoncePage() {
       nextErrors.duration = "La durée doit être comprise entre 15 et 480 minutes.";
     }
 
+    if (
+      !Number.isInteger(Number(maxParticipants)) ||
+      Number(maxParticipants) < 1 ||
+      Number(maxParticipants) > 4
+    ) {
+      nextErrors.maxParticipants = "Choisissez entre 1 et 4 coachés maximum.";
+    }
+
     if (selectedDays.length === 0) {
       nextErrors.days = "Sélectionnez au moins un jour disponible.";
     }
@@ -350,6 +362,7 @@ export default function NewCoachAnnoncePage() {
     formData.append("type_prestation", "visio");
     formData.append("price", Number(price).toFixed(2));
     formData.append("duration", String(Number(duration)));
+    formData.append("max_participants", String(Number(maxParticipants)));
     formData.append("is_online", "1");
     formData.append("location", "Visio GotFit");
 
@@ -383,6 +396,7 @@ export default function NewCoachAnnoncePage() {
     setCategory("");
     setPrice("");
     setDuration("60");
+    setMaxParticipants("2");
     setSelectedDays([]);
     setSlots([{ id: nextSlotId.current++, start: "09:00", end: "12:00" }]);
     removeImage();
@@ -494,7 +508,7 @@ export default function NewCoachAnnoncePage() {
                       </div>
                     </div>
 
-                    <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                    <div className="mt-6 grid gap-6 sm:grid-cols-3">
                       <label className="sm:col-span-2">
                         <FieldLabel>Titre de l’annonce</FieldLabel>
                         <input
@@ -629,6 +643,31 @@ export default function NewCoachAnnoncePage() {
                           </span>
                         </div>
                         <FieldError>{errors.duration}</FieldError>
+                      </label>
+
+                      <label>
+                        <FieldLabel>Coachés maximum</FieldLabel>
+                        <div className="relative">
+                          <UsersRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                          <select
+                            value={maxParticipants}
+                            onChange={(event) => {
+                              setMaxParticipants(event.target.value);
+                              updateFieldError("maxParticipants");
+                            }}
+                            className="gotfit-input gotfit-input-leading-icon"
+                            aria-invalid={Boolean(errors.maxParticipants)}
+                          >
+                            <option value="1">1 coaché</option>
+                            <option value="2">2 coachés</option>
+                            <option value="3">3 coachés</option>
+                            <option value="4">4 coachés</option>
+                          </select>
+                        </div>
+                        <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                          Capacité maximale pour un même créneau.
+                        </p>
+                        <FieldError>{errors.maxParticipants}</FieldError>
                       </label>
                     </div>
                   </section>
@@ -862,10 +901,16 @@ export default function NewCoachAnnoncePage() {
                         "La description de votre accompagnement apparaîtra ici."}
                     </p>
                     <div className="mt-5 flex items-end justify-between gap-3 border-t border-slate-100 pt-4">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
-                        <Clock3 size={15} />
-                        {duration || "60"} min
-                      </span>
+                      <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock3 size={15} />
+                          {duration || "60"} min
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <UsersRound size={15} />
+                          {maxParticipants} coaché{maxParticipants === "1" ? "" : "s"} max
+                        </span>
+                      </div>
                       <strong className="text-lg font-black text-[var(--ink)]">
                         {formatPrice(price)}
                       </strong>

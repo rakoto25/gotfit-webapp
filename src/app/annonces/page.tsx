@@ -16,6 +16,7 @@ import {
   Sparkles,
   UserRound,
   UserSearch,
+  Users,
   Wifi,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ import {
   getAnnonceDescription,
   getAnnonceTitle,
   getAssetUrl,
+  getMaxParticipants,
 } from "@/lib/marketplace";
 
 function isClientRequest(annonce: Annonce) {
@@ -340,6 +342,12 @@ export default function AnnoncesPage() {
                           <Clock3 size={15} />
                           {annonce.duration || 60} min{isClientRequest(annonce) ? " souhaitées" : ""}
                         </span>
+                        {!isClientRequest(annonce) && (
+                          <span className="inline-flex items-center gap-2">
+                            <Users size={15} />
+                            {getMaxParticipants(annonce)} coaché{getMaxParticipants(annonce) > 1 ? "s" : ""} max
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-6 inline-flex items-center gap-2 text-sm font-black text-orange-700">
