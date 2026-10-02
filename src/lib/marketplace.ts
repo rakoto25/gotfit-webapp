@@ -156,6 +156,125 @@ export type PaymentStatusPayload = {
   reservation?: Reservation;
 };
 
+export type OfferStatus = "draft" | "sent" | "paid" | "expired" | "cancelled";
+
+export type PackSessionStatus =
+  | "pending"
+  | "awaiting_client_confirmation"
+  | "validated"
+  | "paid"
+  | "disputed"
+  | "cancelled";
+
+export type PackSessionCancellation = {
+  id: number;
+  actor_role: "client" | "coach" | string;
+  kind: "cancellation" | "no_show" | string;
+  scheduled_at?: string | null;
+  is_late?: boolean;
+  consumes_session?: boolean;
+  reason?: string | null;
+  created_at?: string | null;
+};
+
+export type PackSession = {
+  id: number;
+  pack_id: number;
+  sequence: number;
+  amount_due: number;
+  status: PackSessionStatus | string;
+  payout_status?: string | null;
+  scheduled_at?: string | null;
+  completed_at?: string | null;
+  validation_deadline?: string | null;
+  validated_at?: string | null;
+  disputed_at?: string | null;
+  dispute_reason?: string | null;
+  stripe_transfer_id?: string | null;
+  transferred_at?: string | null;
+  cancellations?: PackSessionCancellation[];
+};
+
+export type Pack = {
+  id: number;
+  offer_id: number;
+  client_id: number;
+  coach_id: number;
+  amount_total: number;
+  wallet_amount_used?: number;
+  stripe_amount_paid?: number;
+  refunded_amount?: number;
+  commission_rate?: string | number;
+  commission_amount?: number;
+  coach_net_amount?: number;
+  amount_transferred?: number;
+  session_count: number;
+  completed_sessions?: number;
+  currency: string;
+  status: string;
+  paid_at?: string | null;
+  coach?: MessageUser | null;
+  client?: MessageUser | null;
+  offer?: Offer | null;
+  sessions?: PackSession[];
+};
+
+export type Offer = {
+  id: number;
+  conversation_id: number;
+  coach_id: number;
+  client_id: number;
+  title: string;
+  description?: string | null;
+  session_count: number;
+  amount_total: number;
+  amount_major?: number;
+  wallet_amount_applied?: number;
+  stripe_amount_due?: number | null;
+  currency: string;
+  status: OfferStatus | string;
+  expires_at?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_checkout_url?: string | null;
+  paid_at?: string | null;
+  cancelled_at?: string | null;
+  is_expired?: boolean;
+  coach?: MessageUser | null;
+  client?: MessageUser | null;
+  pack?: Pack | null;
+};
+
+export type Wallet = {
+  id: number;
+  user_id: number;
+  balance: number;
+  currency: string;
+};
+
+export type WalletTransaction = {
+  id: number;
+  wallet_id: number;
+  pack_id?: number | null;
+  offer_id?: number | null;
+  payment_intent_id?: string | null;
+  type: string;
+  amount: number;
+  balance_after: number;
+  metadata?: Record<string, unknown> | null;
+  pack?: Pack | null;
+  created_at?: string | null;
+};
+
+export type WalletPayload = {
+  wallet: Wallet;
+  transactions?: {
+    data?: WalletTransaction[];
+    current_page?: number;
+    last_page?: number;
+    total?: number;
+  };
+};
+
 type RequestOptions = {
   auth?: boolean;
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -765,6 +884,7 @@ export type MessageItem = {
   sender?: MessageUser | null;
   parent?: MessageItem | null;
   reactions?: MessageReaction[];
+  offer?: Offer | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -831,6 +951,158 @@ export async function fetchMessages(conversationId: string | number) {
   });
 
   return normalizeArray<MessageItem>(payload, ["messages"]);
+}
+
+export async function createChatOffer(
+  conversationId: string | number,
+  body: {
+    title: string;
+    session_count: number;
+    amount: number;
+    description?: string;
+    validity_days?: number;
+  }
+) {
+  const payload = await apiRequest<{ offer?: Offer; message?: MessageItem }>(
+    `/conversations/${conversationId}/offers`,
+    {
+      method: "POST",
+      auth: true,
+      body,
+    }
+  );
+
+  if (!payload.offer?.id || !payload.message?.id) {
+    throw new Error("L’offre a été créée, mais la réponse de l’API est incomplète.");
+  }
+
+  return { offer: payload.offer, message: payload.message };
+}
+
+export async function fetchOffer(offerId: string | number) {
+  const payload = await apiRequest<{ offer?: Offer }>(`/offers/${offerId}`, {
+    auth: true,
+  });
+
+  if (!payload.offer?.id) {
+    throw new Error("Cette offre est introuvable.");
+  }
+
+  return payload.offer;
+}
+
+export async function createOfferCheckout(
+  offerId: string | number,
+  walletAmount = 0
+) {
+  const payload = await apiRequest<{
+    checkout_url?: string;
+    checkout_session_id?: string;
+    already_paid?: boolean;
+    offer?: Offer;
+  }>(`/offers/${offerId}/checkout`, {
+    method: "POST",
+    auth: true,
+    body: { wallet_amount: walletAmount },
+  });
+
+  if (!payload.already_paid && !payload.checkout_url) {
+    throw new Error("Le lien de paiement Stripe est introuvable.");
+  }
+
+  return payload;
+}
+
+export async function cancelOffer(offerId: string | number) {
+  const payload = await apiRequest<{ offer?: Offer }>(`/offers/${offerId}/cancel`, {
+    method: "POST",
+    auth: true,
+  });
+
+  if (!payload.offer?.id) {
+    throw new Error("L’offre a été annulée, mais la réponse est incomplète.");
+  }
+
+  return payload.offer;
+}
+
+export async function fetchPacks() {
+  const payload = await apiRequest<{ packs?: Pack[]; data?: Pack[] }>("/packs", {
+    auth: true,
+  });
+
+  return normalizeArray<Pack>(payload, ["packs"]);
+}
+
+export async function fetchPack(packId: string | number) {
+  const payload = await apiRequest<{ pack?: Pack }>(`/packs/${packId}`, {
+    auth: true,
+  });
+
+  if (!payload.pack?.id) {
+    throw new Error("Ce pack est introuvable.");
+  }
+
+  return payload.pack;
+}
+
+async function updatePackSession(
+  sessionId: string | number,
+  action: "schedule" | "complete" | "validate" | "dispute" | "cancel" | "no-show",
+  body?: Record<string, unknown>
+) {
+  const payload = await apiRequest<{ session?: PackSession }>(
+    `/pack-sessions/${sessionId}/${action}`,
+    {
+      method: "POST",
+      auth: true,
+      body,
+    }
+  );
+
+  if (!payload.session?.id) {
+    throw new Error("La séance a été modifiée, mais la réponse est incomplète.");
+  }
+
+  return { session: payload.session, message: payload.message };
+}
+
+export function schedulePackSession(sessionId: string | number, scheduledAt: string) {
+  return updatePackSession(sessionId, "schedule", { scheduled_at: scheduledAt });
+}
+
+export function completePackSession(sessionId: string | number) {
+  return updatePackSession(sessionId, "complete");
+}
+
+export function validatePackSession(sessionId: string | number) {
+  return updatePackSession(sessionId, "validate");
+}
+
+export function disputePackSession(sessionId: string | number, reason: string) {
+  return updatePackSession(sessionId, "dispute", { reason });
+}
+
+export function cancelPackSession(sessionId: string | number, reason?: string) {
+  return updatePackSession(sessionId, "cancel", { reason });
+}
+
+export function declarePackSessionNoShow(sessionId: string | number, reason?: string) {
+  return updatePackSession(sessionId, "no-show", { reason });
+}
+
+export async function fetchWallet() {
+  const payload = await apiRequest<WalletPayload>("/wallet", { auth: true });
+
+  if (!payload.wallet?.id) {
+    throw new Error("La cagnotte est indisponible.");
+  }
+
+  return {
+    wallet: payload.wallet,
+    transactions: payload.transactions?.data || [],
+    pagination: payload.transactions,
+  };
 }
 
 export async function sendConversationMessage(

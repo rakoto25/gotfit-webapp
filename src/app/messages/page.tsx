@@ -5,6 +5,7 @@ import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
+  BadgeEuro,
   ImageIcon,
   Loader2,
   MessageCircle,
@@ -21,6 +22,7 @@ import {
 
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import OfferCard from "@/components/marketplace/OfferCard";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import {
   Conversation,
@@ -28,6 +30,7 @@ import {
   MessageItem,
   MessageReaction,
   createConversation,
+  createChatOffer,
   fetchConversations,
   fetchMessageContacts,
   fetchMessages,
@@ -126,10 +129,21 @@ function MessagesContent() {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [creatingOffer, setCreatingOffer] = useState(false);
+  const [offerForm, setOfferForm] = useState({
+    title: "Coaching personnalisé",
+    sessionCount: "5",
+    amount: "135",
+    description: "",
+    validityDays: "7",
+  });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const initialUserId = searchParams.get("user_id");
+  const initialConversationId = Number(searchParams.get("conversation_id") || 0) || undefined;
+  const paymentState = searchParams.get("payment");
 
   const filteredConversations = useMemo(() => {
     const searched = query.trim().toLowerCase();
@@ -229,7 +243,13 @@ function MessagesContent() {
         if (initialUserId) {
           await openConversationWithUser(initialUserId);
         } else {
-          await loadInbox();
+          await loadInbox({ preferredConversationId: initialConversationId });
+        }
+
+        if (paymentState === "success") {
+          setSuccess("Paiement reçu par Stripe. Le pack apparaîtra dès confirmation du webhook.");
+        } else if (paymentState === "cancelled") {
+          setSuccess("Paiement annulé. L’offre reste disponible tant qu’elle est valide.");
         }
       } finally {
         setLoading(false);
@@ -238,7 +258,7 @@ function MessagesContent() {
 
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialUserId]);
+  }, [initialConversationId, initialUserId, paymentState]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -303,6 +323,41 @@ function MessagesContent() {
       }
     } catch (err) {
       setError(getErrorMessage(err, "Impossible d'ajouter la réaction."));
+    }
+  }
+
+  async function handleCreateOffer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!activeConversation) return;
+
+    const sessionCount = Number(offerForm.sessionCount);
+    const amount = Number(offerForm.amount.replace(",", "."));
+    const validityDays = Number(offerForm.validityDays);
+
+    if (!offerForm.title.trim() || !Number.isInteger(sessionCount) || sessionCount < 1 || amount < 0.5) {
+      setError("Renseignez un intitulé, au moins une séance et un montant valide.");
+      return;
+    }
+
+    try {
+      setCreatingOffer(true);
+      setError("");
+      await createChatOffer(activeConversation.id, {
+        title: offerForm.title.trim(),
+        session_count: sessionCount,
+        amount,
+        description: offerForm.description.trim() || undefined,
+        validity_days: Number.isInteger(validityDays) ? validityDays : 7,
+      });
+      setOfferOpen(false);
+      await loadMessages(activeConversation);
+      await loadInbox({ preferredConversationId: activeConversation.id });
+      setSuccess("Offre envoyée dans la conversation.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible de créer l’offre."));
+    } finally {
+      setCreatingOffer(false);
     }
   }
 
@@ -537,9 +592,21 @@ function MessagesContent() {
                       </div>
                     </div>
 
-                    {messagesLoading && (
-                      <Loader2 className="animate-spin text-orange-600" size={20} />
-                    )}
+                    <div className="flex items-center gap-2">
+                      {activeConversation.intervenant_id === currentUserId && (
+                        <button
+                          type="button"
+                          onClick={() => setOfferOpen(true)}
+                          className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700"
+                        >
+                          <BadgeEuro size={16} />
+                          Créer une offre
+                        </button>
+                      )}
+                      {messagesLoading && (
+                        <Loader2 className="animate-spin text-orange-600" size={20} />
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex-1 space-y-4 overflow-y-auto bg-[#FFF7ED] p-4 sm:p-6">
@@ -573,10 +640,12 @@ function MessagesContent() {
                             className={`flex ${mine ? "justify-end" : "justify-start"}`}
                           >
                             <div
-                              className={`max-w-[86%] rounded-[1.4rem] p-4 shadow-sm sm:max-w-[70%] ${
-                                mine
-                                  ? "rounded-br-md bg-orange-600 text-white"
-                                  : "rounded-bl-md bg-white text-slate-950"
+                              className={`max-w-[94%] rounded-[1.4rem] sm:max-w-[76%] ${
+                                item.offer
+                                  ? "bg-transparent p-0"
+                                  : mine
+                                    ? "rounded-br-md bg-orange-600 p-4 text-white shadow-sm"
+                                    : "rounded-bl-md bg-white p-4 text-slate-950 shadow-sm"
                               }`}
                             >
                               {item.parent && (
@@ -596,7 +665,19 @@ function MessagesContent() {
                                 </div>
                               )}
 
-                              {item.message && (
+                              {item.offer && (
+                                <OfferCard
+                                  offer={item.offer}
+                                  currentUserId={currentUserId}
+                                  onChanged={() =>
+                                    activeConversation
+                                      ? loadMessages(activeConversation)
+                                      : undefined
+                                  }
+                                />
+                              )}
+
+                              {item.message && !item.offer && (
                                 <p className="whitespace-pre-wrap text-sm font-semibold leading-7">
                                   {item.message}
                                 </p>
@@ -626,7 +707,11 @@ function MessagesContent() {
 
                               <div
                                 className={`mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold ${
-                                  mine ? "text-white/75" : "text-slate-400"
+                                  item.offer
+                                    ? "px-2 text-slate-400"
+                                    : mine
+                                      ? "text-white/75"
+                                      : "text-slate-400"
                                 }`}
                               >
                                 <span>
@@ -647,7 +732,7 @@ function MessagesContent() {
                                 </button>
                               </div>
 
-                              <div className="mt-3 flex flex-wrap items-center gap-1">
+                              {!item.offer && <div className="mt-3 flex flex-wrap items-center gap-1">
                                 {reactionOptions.map((reaction) => (
                                   <button
                                     type="button"
@@ -669,7 +754,7 @@ function MessagesContent() {
                                       : ""}
                                   </button>
                                 ))}
-                              </div>
+                              </div>}
                             </div>
                           </article>
                         );
@@ -789,6 +874,112 @@ function MessagesContent() {
           </section>
         </div>
       </main>
+
+      {offerOpen && activeConversation && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            onClick={() => !creatingOffer && setOfferOpen(false)}
+            aria-label="Fermer la création d’offre"
+          />
+          <form
+            onSubmit={handleCreateOffer}
+            className="relative z-10 w-full max-w-xl rounded-[2rem] bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">
+                  Proposition commerciale
+                </span>
+                <h2 className="mt-2 text-3xl font-black tracking-tight">Créer une offre</h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                  Elle apparaîtra directement dans la conversation et sera payable par le client.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOfferOpen(false)}
+                disabled={creatingOffer}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Fermer"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className="mb-2 block text-sm font-black text-slate-700">Intitulé</span>
+                <input
+                  value={offerForm.title}
+                  onChange={(event) => setOfferForm((value) => ({ ...value, title: event.target.value }))}
+                  required
+                  maxLength={160}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none focus:border-orange-400"
+                />
+              </label>
+              <label>
+                <span className="mb-2 block text-sm font-black text-slate-700">Nombre de séances</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={offerForm.sessionCount}
+                  onChange={(event) => setOfferForm((value) => ({ ...value, sessionCount: event.target.value }))}
+                  required
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none focus:border-orange-400"
+                />
+              </label>
+              <label>
+                <span className="mb-2 block text-sm font-black text-slate-700">Montant total (€)</span>
+                <input
+                  type="number"
+                  min="0.5"
+                  max="999999.99"
+                  step="0.01"
+                  value={offerForm.amount}
+                  onChange={(event) => setOfferForm((value) => ({ ...value, amount: event.target.value }))}
+                  required
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none focus:border-orange-400"
+                />
+              </label>
+              <label>
+                <span className="mb-2 block text-sm font-black text-slate-700">Validité (jours)</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="90"
+                  value={offerForm.validityDays}
+                  onChange={(event) => setOfferForm((value) => ({ ...value, validityDays: event.target.value }))}
+                  required
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none focus:border-orange-400"
+                />
+              </label>
+              <label className="sm:col-span-2">
+                <span className="mb-2 block text-sm font-black text-slate-700">Description optionnelle</span>
+                <textarea
+                  value={offerForm.description}
+                  onChange={(event) => setOfferForm((value) => ({ ...value, description: event.target.value }))}
+                  rows={4}
+                  maxLength={3000}
+                  placeholder="Objectifs, contenu du pack, rythme conseillé…"
+                  className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold outline-none focus:border-orange-400"
+                />
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={creatingOffer}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700 disabled:opacity-60"
+            >
+              {creatingOffer ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+              {creatingOffer ? "Envoi en cours…" : "Envoyer l’offre"}
+            </button>
+          </form>
+        </div>
+      )}
 
       <Footer />
     </>

@@ -18,6 +18,7 @@ import {
   CreditCard,
   Loader2,
   MapPin,
+  MessageCircleMore,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -399,10 +400,14 @@ function ReservationContent() {
     const nextDate = availableDates[0] || "";
     const nextTime = availableStartTimes[0] || "";
 
-    setReservationDate(nextDate);
-    setReservationTime(nextTime);
-    setPayment(null);
-    setReservation(null);
+    const timer = window.setTimeout(() => {
+      setReservationDate(nextDate);
+      setReservationTime(nextTime);
+      setPayment(null);
+      setReservation(null);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [selectedAnnonceId, availableDates, availableStartTimes]);
 
   const stripeOptions = useMemo<StripeElementsOptions | undefined>(() => {
@@ -694,6 +699,24 @@ function ReservationContent() {
                     de la réservation.
                   </p>
                 </div>
+
+                {selectedAnnonce && getAnnonceOwnerId(selectedAnnonce) && (
+                  <div className="mb-5 rounded-[1.7rem] border border-orange-200 bg-orange-50 p-4">
+                    <strong className="block text-sm font-black text-slate-950">
+                      Une question avant de payer ?
+                    </strong>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                      Contactez {getCoachName(selectedAnnonce)} dans la messagerie GotFit avant de confirmer la réservation.
+                    </p>
+                    <Link
+                      href={`/messages?user_id=${getAnnonceOwnerId(selectedAnnonce)}`}
+                      className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-black text-orange-700 shadow-sm transition hover:bg-orange-100"
+                    >
+                      <MessageCircleMore size={16} />
+                      Contacter le coach
+                    </Link>
+                  </div>
+                )}
 
                 {!payment && (
                   <>

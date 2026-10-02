@@ -259,10 +259,14 @@ export default function AnnonceDetailPage() {
   const availableStartTimes = useMemo(() => getAvailableStartTimes(annonce), [annonce]);
 
   useEffect(() => {
-    setReservationDate(availableDates[0] || "");
-    setReservationTime(availableStartTimes[0] || "");
-    setReservation(null);
-    setPayment(null);
+    const timer = window.setTimeout(() => {
+      setReservationDate(availableDates[0] || "");
+      setReservationTime(availableStartTimes[0] || "");
+      setReservation(null);
+      setPayment(null);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [annonce?.id, availableDates, availableStartTimes]);
 
   useEffect(() => {

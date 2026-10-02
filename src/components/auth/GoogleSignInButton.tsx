@@ -14,7 +14,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { getPostAuthRoute, saveAuth } from "@/lib/auth";
+import { saveAuth } from "@/lib/auth";
+import { getAuthDestination } from "@/lib/auth-redirect";
 import { API_BASE_URL } from "@/lib/api-config";
 import type { User } from "@/types/auth";
 
@@ -281,17 +282,11 @@ export default function GoogleSignInButton({
           new Event("gotfit:auth")
         );
 
-        const safeRedirect =
-          typeof redirectTo === "string" &&
-          redirectTo.startsWith("/") &&
-          !redirectTo.startsWith("//") &&
-          !redirectTo.includes("\\")
-            ? redirectTo
-            : null;
+        const redirectSearch = redirectTo
+          ? `?redirect=${encodeURIComponent(redirectTo)}`
+          : window.location.search;
 
-        router.replace(
-          safeRedirect || getPostAuthRoute(result.user)
-        );
+        router.replace(getAuthDestination(result.user, redirectSearch));
 
         router.refresh();
       } catch (error) {

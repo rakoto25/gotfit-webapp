@@ -5,11 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  CalendarDays,
   CircleHelp,
   LogIn,
   Menu,
   MessageCircleMore,
+  PackageCheck,
   Search,
   UserRound,
   X,
@@ -39,9 +39,13 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const visibleNavLinks = isCoach(user) || isAdmin(user)
-    ? [...navLinks, { label: "Forum coachs", href: "/forum-coachs" }]
-    : navLinks;
+  const visibleNavLinks = [
+    ...navLinks,
+    ...(user ? [{ label: "Mes packs", href: "/packs" }] : []),
+    ...(isCoach(user) || isAdmin(user)
+      ? [{ label: "Forum coachs", href: "/forum-coachs" }]
+      : []),
+  ];
 
   useEffect(() => {
     const syncUser = () => setUser(getCurrentUser());
@@ -241,9 +245,9 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
           {[
             { href: "/annonces", label: "Explorer", icon: Search },
             {
-              href: user ? "/planning" : "/auth/login",
-              label: "Planning",
-              icon: CalendarDays,
+              href: user ? "/packs" : "/auth/login",
+              label: "Packs",
+              icon: PackageCheck,
             },
             { href: "/aide", label: "Aide", icon: CircleHelp },
             {

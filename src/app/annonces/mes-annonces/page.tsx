@@ -85,8 +85,12 @@ export default function MyAnnouncementsPage() {
   }, []);
 
   useEffect(() => {
-    setCoachAccount(hasRole(getCurrentUser(), "intervenant"));
-    void load();
+    const timer = window.setTimeout(() => {
+      setCoachAccount(hasRole(getCurrentUser(), "intervenant"));
+      void load();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   async function removeAnnonce(annonce: Annonce) {

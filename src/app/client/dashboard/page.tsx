@@ -16,6 +16,7 @@ import {
   Sparkles,
   UserRound,
   Video,
+  WalletCards,
   X,
 } from "lucide-react";
 
@@ -24,8 +25,10 @@ import Footer from "@/components/layout/Footer";
 import { getCurrentUser, getToken, hasRole } from "@/lib/auth";
 import {
   fetchClientReservations,
+  fetchWallet,
   formatDate,
   formatMoney,
+  formatMinorMoney,
   getAnnonceTitle,
   canAddReservationToCalendar,
   downloadReservationCalendar,
@@ -79,6 +82,8 @@ export default function ClientDashboardPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [calendarLoading, setCalendarLoading] = useState<number | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletCurrency, setWalletCurrency] = useState("eur");
 
   const user = useMemo(() => getCurrentUser(), []);
 
@@ -135,12 +140,15 @@ export default function ClientDashboardPage() {
       if (!getToken()) throw new Error("Veuillez vous connecter pour accéder à votre espace client.");
       if (user && !hasRole(user, "client")) throw new Error("Cet espace est réservé aux comptes clients.");
 
-      const [reservationItems, visioItems] = await Promise.all([
+      const [reservationItems, visioItems, walletResult] = await Promise.all([
         fetchClientReservations(),
         fetchVisioSessions(true).catch(() => []),
+        fetchWallet().catch(() => null),
       ]);
       setReservations(reservationItems);
       setSessions(visioItems);
+      setWalletBalance(walletResult?.wallet.balance || 0);
+      setWalletCurrency(walletResult?.wallet.currency || "eur");
     } catch (err) {
       setError(getErrorMessage(err, "Impossible de charger le tableau de bord."));
     } finally {
@@ -203,7 +211,7 @@ export default function ClientDashboardPage() {
             </div>
           </section>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
             {[
               ["/annonces", Sparkles, "Réserver", "Trouver une prestation"],
               ["/annonces/nouvelle", Megaphone, "Publier", "Rechercher un coach"],
@@ -212,6 +220,7 @@ export default function ClientDashboardPage() {
               ["/planning", CalendarCheck, "Planning", "Voir mes rendez-vous"],
               ["/visio", Video, "Visio", "Rejoindre une séance"],
               ["/messages", MessageCircle, "Messages", "Contacter mon coach"],
+              ["/packs", WalletCards, "Packs & cagnotte", formatMinorMoney(walletBalance, walletCurrency)],
             ].map(([href, Icon, title, subtitle]) => (
               <Link key={String(href)} href={String(href)} className="rounded-[1.5rem] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
                 <Icon className="mb-4 text-orange-600" size={24} />
