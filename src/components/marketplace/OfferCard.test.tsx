@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import OfferCard from "@/components/marketplace/OfferCard";
 import { cancelOffer, type Offer } from "@/lib/marketplace";
@@ -31,6 +31,8 @@ describe("OfferCard", () => {
     vi.mocked(cancelOffer).mockReset();
   });
 
+  afterEach(cleanup);
+
   it("propose au client une étape de vérification avant Stripe", () => {
     render(<OfferCard offer={offer} currentUserId={offer.client_id} />);
 
@@ -52,5 +54,25 @@ describe("OfferCard", () => {
 
     await waitFor(() => expect(cancelOffer).toHaveBeenCalledWith(offer.id));
     expect(onChanged).toHaveBeenCalledOnce();
+  });
+
+  it("affiche une offre expirée sans action de paiement ni d'annulation", () => {
+    const { rerender } = render(
+      <OfferCard
+        offer={{ ...offer, is_expired: true }}
+        currentUserId={offer.client_id}
+      />
+    );
+
+    expect(screen.getByText("Expirée")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Vérifier et payer/ })).not.toBeInTheDocument();
+
+    rerender(
+      <OfferCard
+        offer={{ ...offer, is_expired: true }}
+        currentUserId={offer.coach_id}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Annuler" })).not.toBeInTheDocument();
   });
 });

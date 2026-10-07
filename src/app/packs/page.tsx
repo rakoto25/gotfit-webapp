@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
@@ -90,10 +90,11 @@ function PacksContent() {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [scheduleValues, setScheduleValues] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionLoadingIds, setActionLoadingIds] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const actionsInFlight = useRef(new Set<number>());
   const highlightedPackId = Number(searchParams.get("pack") || 0) || null;
 
   const sortedPacks = useMemo(() => {
@@ -129,8 +130,11 @@ function PacksContent() {
   }, [router]);
 
   async function runAction(sessionId: number, action: () => Promise<{ message?: string }>, fallback: string) {
+    if (actionsInFlight.current.has(sessionId)) return;
+
     try {
-      setActionLoading(sessionId);
+      actionsInFlight.current.add(sessionId);
+      setActionLoadingIds((ids) => new Set(ids).add(sessionId));
       setError("");
       setSuccess("");
       const result = await action();
@@ -139,7 +143,12 @@ function PacksContent() {
     } catch (err) {
       setError(getErrorMessage(err, "Impossible de modifier cette séance."));
     } finally {
-      setActionLoading(null);
+      actionsInFlight.current.delete(sessionId);
+      setActionLoadingIds((ids) => {
+        const nextIds = new Set(ids);
+        nextIds.delete(sessionId);
+        return nextIds;
+      });
     }
   }
 
@@ -173,9 +182,15 @@ function PacksContent() {
   }
 
   function handleNoShow(session: PackSession) {
+    if (!window.confirm("Confirmer l’absence du client ? Cette action peut déclencher le paiement de la séance au coach selon les règles GotFit.")) return;
     const reason = window.prompt("Motif de l’absence (optionnel) :", "Client absent") ?? undefined;
     if (reason === undefined) return;
     void runAction(session.id, () => declarePackSessionNoShow(session.id, reason), "Absence déclarée.");
+  }
+
+  function handleValidation(session: PackSession) {
+    if (!window.confirm("Valider cette séance réalisée ? Le reversement au coach sera déclenché et cette action ne pourra pas être répétée.")) return;
+    void runAction(session.id, () => validatePackSession(session.id), "Séance validée; le reversement coach est lancé.");
   }
 
   return (
@@ -222,10 +237,10 @@ function PacksContent() {
 
                         <div className="mt-6 grid gap-4">
                           {(pack.sessions || []).map((session) => {
-                            const busy = actionLoading === session.id;
+                            const busy = actionLoadingIds.has(session.id);
                             const scheduledTime = session.scheduled_at ? new Date(session.scheduled_at).getTime() : null;
                             const sessionPassed = scheduledTime !== null && scheduledTime <= Date.now();
-                            const noShowAllowed = scheduledTime !== null && scheduledTime + 15 * 60_000 <= Date.now();
+                            const noShowCanBeRequested = sessionPassed;
 
                             return (
                               <section key={session.id} className={`rounded-[1.7rem] border p-5 ${sessionTone(session.status)}`}>
@@ -242,8 +257,8 @@ function PacksContent() {
                                     <><input type="datetime-local" min={localDateTimeMinimum()} value={scheduleValues[session.id] || ""} onChange={(event) => setScheduleValues((values) => ({ ...values, [session.id]: event.target.value }))} className="rounded-xl border border-orange-200 bg-white px-3 py-2 text-xs font-bold text-slate-700" /><button type="button" onClick={() => handleSchedule(session)} disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-xs font-black text-white"><Clock3 size={15} /> Planifier</button></>
                                   )}
                                   {isCoach && session.status === "pending" && session.scheduled_at && sessionPassed && <button type="button" onClick={() => void runAction(session.id, () => completePackSession(session.id), "Séance déclarée réalisée.")} disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-black text-white"><CheckCircle2 size={15} /> Déclarer réalisée</button>}
-                                  {isCoach && session.status === "pending" && session.scheduled_at && noShowAllowed && <button type="button" onClick={() => handleNoShow(session)} disabled={busy} className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-black text-red-700"><UserX size={15} /> Client absent</button>}
-                                  {!isCoach && session.status === "awaiting_client_confirmation" && <button type="button" onClick={() => void runAction(session.id, () => validatePackSession(session.id), "Séance validée; le reversement coach est lancé.")} disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-black text-white"><CheckCircle2 size={15} /> Valider la séance</button>}
+                                  {isCoach && session.status === "pending" && session.scheduled_at && noShowCanBeRequested && <button type="button" onClick={() => handleNoShow(session)} disabled={busy} title="L’API applique le délai de grâce configuré par GotFit." className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-black text-red-700"><UserX size={15} /> Client absent</button>}
+                                  {!isCoach && session.status === "awaiting_client_confirmation" && <button type="button" onClick={() => handleValidation(session)} disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-black text-white"><CheckCircle2 size={15} /> Valider la séance</button>}
                                   {!isCoach && ["awaiting_client_confirmation", "validated"].includes(session.status) && !session.stripe_transfer_id && <button type="button" onClick={() => handleDispute(session)} disabled={busy} className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-black text-red-700"><ShieldAlert size={15} /> Contester</button>}
                                   {session.status === "pending" && session.scheduled_at && <button type="button" onClick={() => handleCancel(session)} disabled={busy} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700"><XCircle size={15} /> Annuler</button>}
                                   {busy && <Loader2 className="animate-spin" size={18} />}

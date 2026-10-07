@@ -27,6 +27,7 @@ export default function OfferCard({ offer, currentUserId, onChanged }: OfferCard
   const isCoach = currentUserId === offer.coach_id;
   const payable = offer.status === "sent" && !offer.is_expired;
   const paid = offer.status === "paid";
+  const displayedStatus = offer.is_expired && offer.status === "sent" ? "expired" : offer.status;
 
   async function handleCancel() {
     if (cancelling || !window.confirm("Annuler cette offre ? Le client ne pourra plus la payer.")) {
@@ -53,7 +54,7 @@ export default function OfferCard({ offer, currentUserId, onChanged }: OfferCard
           Offre GotFit
         </span>
         <span className={`rounded-full px-3 py-1 text-[11px] font-black ${paid ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 text-white"}`}>
-          {statusLabels[offer.status] || offer.status}
+          {statusLabels[displayedStatus] || displayedStatus}
         </span>
       </div>
 

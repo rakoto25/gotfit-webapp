@@ -115,6 +115,7 @@ function MessagesContent() {
   const searchParams = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const offerCreationInFlight = useRef(false);
 
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [contacts, setContacts] = useState<MessageContact[]>([]);
@@ -165,6 +166,7 @@ function MessagesContent() {
   const activeOtherUser = activeConversation
     ? getOtherUser(activeConversation, currentUserId)
     : null;
+  const activeConversationId = activeConversation?.id;
 
   async function loadInbox(options?: { preferredConversationId?: number }) {
     try {
@@ -247,7 +249,7 @@ function MessagesContent() {
         }
 
         if (paymentState === "success") {
-          setSuccess("Paiement reçu par Stripe. Le pack apparaîtra dès confirmation du webhook.");
+          setSuccess("Retour Stripe reçu. Le pack apparaîtra dès confirmation sécurisée du paiement par le webhook.");
         } else if (paymentState === "cancelled") {
           setSuccess("Paiement annulé. L’offre reste disponible tant qu’elle est valide.");
         }
@@ -263,6 +265,39 @@ function MessagesContent() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeConversation?.id]);
+
+  useEffect(() => {
+    if (!activeConversationId || !getToken()) return;
+
+    const conversationId = activeConversationId;
+    let cancelled = false;
+
+    async function refreshMessages() {
+      if (document.visibilityState === "hidden") return;
+
+      try {
+        const latestMessages = await fetchMessages(conversationId);
+        if (!cancelled) {
+          setMessages((currentMessages) =>
+            JSON.stringify(currentMessages) === JSON.stringify(latestMessages)
+              ? currentMessages
+              : latestMessages
+          );
+        }
+      } catch {
+        // Le rafraîchissement manuel reste disponible si une relève silencieuse échoue.
+      }
+    }
+
+    const interval = window.setInterval(refreshMessages, 10_000);
+    window.addEventListener("focus", refreshMessages);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshMessages);
+    };
+  }, [activeConversationId]);
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -329,7 +364,7 @@ function MessagesContent() {
   async function handleCreateOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!activeConversation) return;
+    if (!activeConversation || offerCreationInFlight.current) return;
 
     const sessionCount = Number(offerForm.sessionCount);
     const amount = Number(offerForm.amount.replace(",", "."));
@@ -341,6 +376,7 @@ function MessagesContent() {
     }
 
     try {
+      offerCreationInFlight.current = true;
       setCreatingOffer(true);
       setError("");
       await createChatOffer(activeConversation.id, {
@@ -357,6 +393,7 @@ function MessagesContent() {
     } catch (err) {
       setError(getErrorMessage(err, "Impossible de créer l’offre."));
     } finally {
+      offerCreationInFlight.current = false;
       setCreatingOffer(false);
     }
   }

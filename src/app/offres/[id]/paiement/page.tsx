@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -40,6 +40,7 @@ export default function OfferPaymentPage() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
+  const checkoutInFlight = useRef(false);
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -93,9 +94,10 @@ export default function OfferPaymentPage() {
   const stripeDue = offer ? Math.max(offer.amount_total - selectedWalletCents, 0) : 0;
 
   async function handleCheckout() {
-    if (!offer || paying) return;
+    if (!offer || checkoutInFlight.current) return;
 
     try {
+      checkoutInFlight.current = true;
       setPaying(true);
       setError("");
       const result = await createOfferCheckout(offer.id, selectedWalletCents / 100);
@@ -113,6 +115,7 @@ export default function OfferPaymentPage() {
     } catch (err) {
       setError(getErrorMessage(err, "Impossible d’ouvrir le paiement Stripe."));
       setPaying(false);
+      checkoutInFlight.current = false;
     }
   }
 
