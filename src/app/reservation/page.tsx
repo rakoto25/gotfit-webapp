@@ -194,6 +194,7 @@ function CheckoutForm({
   const [processing, setProcessing] = useState(false);
   const [elementReady, setElementReady] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState("");
 
   async function handlePayment(event: FormEvent<HTMLFormElement>) {
@@ -213,6 +214,11 @@ function CheckoutForm({
 
     if (!paymentComplete) {
       setError("Veuillez compléter les informations de paiement avant de confirmer.");
+      return;
+    }
+
+    if (!termsAccepted) {
+      setError("Veuillez lire et accepter les CGV clients avant de payer.");
       return;
     }
 
@@ -283,7 +289,7 @@ function CheckoutForm({
   }
 
   const canPay = Boolean(
-    stripe && elements && elementReady && paymentComplete && !processing
+    stripe && elements && elementReady && paymentComplete && termsAccepted && !processing
   );
 
   return (
@@ -351,6 +357,11 @@ function CheckoutForm({
           Remplissez les informations de paiement avant de confirmer.
         </div>
       )}
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-5 text-slate-600">
+        <input type="checkbox" checked={termsAccepted} onChange={(event) => { setTermsAccepted(event.target.checked); setError(""); }} disabled={processing} className="mt-0.5 h-4 w-4 shrink-0 accent-orange-600"/>
+        <span>J’ai lu et j’accepte les <Link href="/cgv/client-achat" target="_blank" rel="noreferrer" className="font-black text-orange-700 underline">CGV applicables à cet achat</Link>.</span>
+      </label>
 
       <button
         type="submit"

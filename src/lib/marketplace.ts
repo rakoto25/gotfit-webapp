@@ -158,6 +158,18 @@ export type PaymentStatusPayload = {
 
 export type OfferStatus = "draft" | "sent" | "paid" | "expired" | "cancelled";
 
+export type LegalDocument = {
+  id: number;
+  slug: string;
+  audience: "client" | "intervenant" | string;
+  title: string;
+  content: string;
+  version: string;
+  effective_at?: string | null;
+  is_published: boolean;
+  updated_at?: string | null;
+};
+
 export type PackSessionStatus =
   | "pending"
   | "awaiting_client_confirmation"
@@ -989,6 +1001,18 @@ export async function fetchOffer(offerId: string | number) {
   }
 
   return payload.offer;
+}
+
+export async function fetchLegalDocument(slug: string) {
+  const payload = await apiRequest<{ document?: LegalDocument }>(
+    `/legal-documents/${encodeURIComponent(slug)}`
+  );
+
+  if (!payload.document?.id) {
+    throw new Error("Ces conditions générales sont indisponibles.");
+  }
+
+  return payload.document;
 }
 
 export async function createOfferCheckout(

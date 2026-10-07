@@ -450,6 +450,15 @@ export default function RegisterPage() {
         >
           conditions générales
         </Link>{" "}
+        et les{" "}
+        <Link
+          href={isCoach ? "/cgv/intervenants" : "/cgv/client-achat"}
+          target="_blank"
+          rel="noreferrer"
+          className="font-black text-[var(--ink)] underline"
+        >
+          conditions générales de vente {isCoach ? "intervenants" : "clients"}
+        </Link>{" "}
         et la{" "}
         <Link
           href="/confidentialite"

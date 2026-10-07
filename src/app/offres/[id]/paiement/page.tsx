@@ -39,6 +39,7 @@ export default function OfferPaymentPage() {
   const [walletAmount, setWalletAmount] = useState("0");
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState("");
   const checkoutInFlight = useRef(false);
 
@@ -95,6 +96,11 @@ export default function OfferPaymentPage() {
 
   async function handleCheckout() {
     if (!offer || checkoutInFlight.current) return;
+
+    if (!termsAccepted) {
+      setError("Veuillez lire et accepter les CGV clients avant de continuer vers Stripe.");
+      return;
+    }
 
     try {
       checkoutInFlight.current = true;
@@ -248,12 +254,16 @@ export default function OfferPaymentPage() {
                     </div>
 
                     {checkoutLocked && <p className="mb-4 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-bold text-blue-700">Une session Stripe existe déjà. Le montant de cagnotte est verrouillé pour éviter un double débit.</p>}
+                    <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-5 text-slate-600">
+                      <input type="checkbox" checked={termsAccepted} onChange={(event) => { setTermsAccepted(event.target.checked); setError(""); }} disabled={paying} className="mt-0.5 h-4 w-4 shrink-0 accent-orange-600"/>
+                      <span>J’ai lu et j’accepte les <Link href="/cgv/client-achat" target="_blank" rel="noreferrer" className="font-black text-orange-700 underline">CGV applicables à cet achat</Link>.</span>
+                    </label>
                     {error && <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</p>}
 
                     <button
                       type="button"
                       onClick={handleCheckout}
-                      disabled={paying}
+                      disabled={paying || !termsAccepted}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700 disabled:opacity-60"
                     >
                       {paying ? <Loader2 className="animate-spin" size={18} /> : <CreditCard size={18} />}

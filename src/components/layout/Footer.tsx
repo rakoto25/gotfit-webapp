@@ -31,6 +31,8 @@ const footerGroups = [
     links: [
       { label: "Centre d’aide", href: "/aide" },
       { label: "Nous contacter", href: "/contact" },
+      { label: "CGV clients", href: "/cgv/client-achat" },
+      { label: "CGV intervenants", href: "/cgv/intervenants" },
       { label: "Confidentialité", href: "/confidentialite" },
       { label: "Mentions légales", href: "/mentions-legales" },
     ],
