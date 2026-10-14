@@ -141,21 +141,35 @@ export default function CoachForumPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-[#fff7ed] px-4 pb-24 pt-32 text-slate-950 sm:pt-36">
+      <main className="min-h-screen bg-[#f7f6f2] px-4 pb-24 pt-28 text-slate-950 sm:pt-32">
         <div className="mx-auto max-w-7xl">
-          <section className="relative overflow-hidden rounded-[2.5rem] bg-slate-950 p-7 text-white shadow-[0_28px_90px_rgba(15,23,42,0.2)] sm:p-10">
-            <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-orange-500/20 blur-3xl" />
-            <div className="relative flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <span className="inline-flex items-center gap-2 rounded-full bg-orange-500/15 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-orange-300">
+          <section className="relative overflow-hidden rounded-[2.25rem] bg-slate-950 px-6 py-8 text-white shadow-[0_28px_80px_rgba(15,23,42,0.16)] sm:px-9 sm:py-10 lg:px-12">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_12%,rgba(249,115,22,0.3),transparent_28%),radial-gradient(circle_at_65%_120%,rgba(255,255,255,0.08),transparent_34%)]" />
+            <div className="absolute -right-8 top-10 hidden h-40 w-40 rounded-full border border-white/10 lg:block" />
+            <div className="absolute -right-20 -top-16 hidden h-72 w-72 rounded-full border border-white/5 lg:block" />
+            <div className="relative grid gap-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
+              <div className="max-w-3xl">
+                <span className="inline-flex items-center gap-2 rounded-full border border-orange-300/20 bg-orange-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-orange-300">
                   <ShieldCheck size={16} /> Coachs validés uniquement
                 </span>
-                <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-6xl">Le forum des coachs.</h1>
-                <p className="mt-4 max-w-2xl text-base font-semibold leading-8 text-slate-300">
-                  Des canaux thématiques pour partager méthodes, retours terrain et informations officielles GotFit.
+                <h1 className="mt-6 text-4xl font-black leading-[0.95] tracking-[-0.045em] sm:text-6xl">Le collectif des coachs.</h1>
+                <p className="mt-5 max-w-2xl text-base font-medium leading-7 text-slate-300 sm:text-lg">
+                  Un espace professionnel pour partager vos méthodes, demander conseil et suivre les actualités GotFit.
                 </p>
               </div>
-              <ForumTopLinks unreadCount={unreadCount} admin={admin} />
+              <div className="grid gap-4">
+                <ForumTopLinks unreadCount={unreadCount} admin={admin} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 backdrop-blur-sm">
+                    <strong className="block text-2xl font-black">{channels.length}</strong>
+                    <span className="text-xs font-bold text-slate-400">Canaux thématiques</span>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 backdrop-blur-sm">
+                    <strong className="block text-2xl font-black">{pagination?.total || 0}</strong>
+                    <span className="text-xs font-bold text-slate-400">Discussions</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -167,10 +181,10 @@ export default function CoachForumPage() {
           )}
 
           {allowed && (
-            <div className="mt-7 grid gap-7 lg:grid-cols-[290px_minmax(0,1fr)]">
+            <div className="mt-6 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
               <aside className="lg:sticky lg:top-28 lg:self-start">
-                <div className="rounded-[2rem] bg-orange-100/60 p-3">
-                  <div className="mb-3 flex items-center gap-2 px-2 text-xs font-black uppercase tracking-[0.16em] text-orange-800">
+                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white p-3 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
+                  <div className="mb-3 flex items-center gap-2 px-2 pt-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
                     <UsersRound size={16} /> Canaux
                   </div>
                   <ChannelNav channels={channels} selected={channel} onSelect={(slug) => { setChannel(slug); setPage(1); }} />
@@ -178,58 +192,63 @@ export default function CoachForumPage() {
               </aside>
 
               <div className="min-w-0">
-                <div className="flex flex-col gap-3 rounded-[2rem] bg-white p-4 shadow-sm sm:flex-row">
+                <div className="rounded-[1.75rem] border border-slate-200/80 bg-white p-3 shadow-[0_16px_45px_rgba(15,23,42,0.06)]">
+                  <div className="flex flex-col gap-3 xl:flex-row">
                   <form onSubmit={submitSearch} className="flex min-w-0 flex-1 gap-2">
                     <label className="relative min-w-0 flex-1">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher une discussion…" className="h-12 w-full rounded-full border border-slate-200 pl-11 pr-4 text-sm font-semibold outline-none focus:border-orange-400" />
+                      <span className="sr-only">Rechercher une discussion</span>
+                      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher dans le forum…" className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-100" />
                     </label>
-                    <button type="submit" className="rounded-full bg-slate-950 px-5 text-sm font-black text-white">Chercher</button>
+                    <button type="submit" className="rounded-2xl bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-slate-800">Chercher</button>
                   </form>
-                  <select value={sort} onChange={(event) => { setSort(event.target.value as "recent" | "popular"); setPage(1); }} className="h-12 rounded-full border border-slate-200 bg-white px-4 text-sm font-black outline-none">
+                  <select aria-label="Trier les discussions" value={sort} onChange={(event) => { setSort(event.target.value as "recent" | "popular"); setPage(1); }} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100">
                     <option value="recent">Plus récentes</option>
                     <option value="popular">Plus actives</option>
                   </select>
-                  <button type="button" onClick={() => setShowComposer((current) => !current)} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-orange-600 px-5 text-sm font-black text-white hover:bg-orange-700">
+                  <button type="button" onClick={() => setShowComposer((current) => !current)} aria-expanded={showComposer} className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 text-sm font-black text-white shadow-[0_10px_25px_rgba(234,88,12,0.2)] transition hover:-translate-y-0.5 hover:bg-orange-700">
                     {showComposer ? <X size={17} /> : <Plus size={17} />} Nouvelle discussion
                   </button>
+                  </div>
                 </div>
 
                 {showComposer && (
-                  <form onSubmit={submitDiscussion} className="mt-4 rounded-[2rem] border border-orange-100 bg-white p-5 shadow-sm sm:p-7">
-                    <div className="flex items-center gap-3"><Sparkles className="text-orange-600" /><h2 className="text-xl font-black">Lancer une discussion</h2></div>
+                  <form onSubmit={submitDiscussion} className="mt-4 overflow-hidden rounded-[1.75rem] border border-orange-200 bg-white shadow-[0_18px_50px_rgba(234,88,12,0.08)]">
+                    <div className="flex items-center gap-3 border-b border-orange-100 bg-orange-50/60 px-5 py-4 sm:px-7"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-orange-600 text-white"><Sparkles size={19} /></span><div><h2 className="text-lg font-black">Lancer une discussion</h2><p className="text-xs font-semibold text-slate-500">Partagez une question claire avec la communauté.</p></div></div>
+                    <div className="p-5 sm:p-7">
                     <div className="mt-5 grid gap-4 sm:grid-cols-2">
                       <label className="grid gap-2 text-sm font-black text-slate-700">
                         Canal
-                        <select value={composeChannelId || ""} onChange={(event) => setComposeChannelId(Number(event.target.value))} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 outline-none focus:border-orange-400" required>
+                        <select value={composeChannelId || ""} onChange={(event) => setComposeChannelId(Number(event.target.value))} className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-100" required>
                           {channels.map((item) => <option key={item.id} value={item.id} disabled={item.is_official && !admin}>{item.name}{item.is_official ? " · officiel" : ""}</option>)}
                         </select>
                       </label>
                       <label className="grid gap-2 text-sm font-black text-slate-700">
                         Titre
-                        <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} className="h-12 rounded-2xl border border-slate-200 px-4 outline-none focus:border-orange-400" placeholder="Un titre précis" required />
+                        <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={180} className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-100" placeholder="Un titre précis" required />
                       </label>
                     </div>
                     <div className="mt-4">
                       <MentionComposer value={body} onChange={setBody} mentionIds={mentionIds} onMentionIdsChange={setMentionIds} placeholder="Décrivez votre question ou votre retour d’expérience…" />
                     </div>
-                    <div className="mt-4 flex justify-end">
-                      <button type="submit" disabled={creating || !title.trim() || !body.trim()} className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-6 py-3 text-sm font-black text-white disabled:opacity-50">
+                    <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
+                      <button type="submit" disabled={creating || !title.trim() || !body.trim()} className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-6 py-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                         {creating ? <Loader2 className="animate-spin" size={17} /> : <Send size={17} />} Publier
                       </button>
+                    </div>
                     </div>
                   </form>
                 )}
 
                 {error && <div role="alert" className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">{error}</div>}
 
-                <section className="mt-5 grid gap-4" aria-live="polite">
+                <section className="mt-5 grid gap-3" aria-live="polite">
                   {loading ? (
                     <div className="flex items-center justify-center gap-3 rounded-[2rem] bg-white py-16 text-sm font-black text-orange-700"><Loader2 className="animate-spin" size={20} /> Chargement des discussions…</div>
                   ) : !discussions.length ? (
                     <div className="rounded-[2rem] bg-white p-10 text-center shadow-sm"><MessageCircleMore className="mx-auto text-orange-500" size={38} /><h2 className="mt-4 text-xl font-black">Aucune discussion trouvée</h2><p className="mt-2 text-sm font-semibold text-slate-500">Changez de canal ou lancez le premier échange.</p></div>
                   ) : discussions.map((discussion) => (
-                    <article key={discussion.id} className="rounded-[2rem] border border-transparent bg-white p-5 shadow-sm transition hover:border-orange-100 hover:shadow-md sm:p-6">
+                    <article key={discussion.id} className="group/card rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-[0_12px_35px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-6">
                       <div className="flex items-start gap-4">
                         <ForumAvatar author={discussion.author} />
                         <div className="min-w-0 flex-1">
@@ -246,7 +265,7 @@ export default function CoachForumPage() {
                             <p className="text-xs font-bold text-slate-400">{discussion.author?.name || "Coach GotFit"} · {formatForumDate(discussion.last_activity_at || discussion.created_at)} · {discussion.comments_count || 0} réponses · {discussion.views_count || 0} vues</p>
                             <div className="flex items-center gap-3">
                               <ReactionBar compact counts={discussion.reaction_counts} active={discussion.viewer_reaction} onReact={(reaction) => void react(discussion.id, reaction)} />
-                              <Link href={`/forum-coachs/${discussion.id}`} aria-label="Ouvrir la discussion" className="grid h-9 w-9 place-items-center rounded-full bg-slate-950 text-white"><ArrowRight size={16} /></Link>
+                              <Link href={`/forum-coachs/${discussion.id}`} aria-label="Ouvrir la discussion" className="grid h-9 w-9 place-items-center rounded-full bg-slate-950 text-white transition group-hover/card:bg-orange-600"><ArrowRight size={16} /></Link>
                             </div>
                           </div>
                         </div>

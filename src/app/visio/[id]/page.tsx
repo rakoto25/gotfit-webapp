@@ -64,7 +64,6 @@ import {
   reserveVisioSession,
   startVisioSession,
   VISIO_MAX_COACHEES,
-  VISIO_MAX_TOTAL_PARTICIPANTS,
   type VisioJoinPayload,
   type VisioSession,
 } from "@/lib/visio";
@@ -750,6 +749,21 @@ export default function VisioDetailPage() {
       activeClientParticipants,
     ]);
 
+  const sessionCoachCapacity =
+    useMemo(() => {
+      return clampInteger(
+        session?.max_participants,
+        1,
+        VISIO_MAX_COACHEES,
+        1,
+      );
+    }, [
+      session?.max_participants,
+    ]);
+
+  const sessionTotalCapacity =
+    1 + sessionCoachCapacity;
+
   const paidClientCount =
     useMemo(() => {
       const apiCount = Number(
@@ -761,11 +775,12 @@ export default function VisioDetailPage() {
           ? apiCount
           : calculatedPaidClientCount,
         0,
-        VISIO_MAX_COACHEES,
+        sessionCoachCapacity,
         calculatedPaidClientCount,
       );
     }, [
       calculatedPaidClientCount,
+      sessionCoachCapacity,
       session?.paid_participants_count,
     ]);
 
@@ -780,11 +795,12 @@ export default function VisioDetailPage() {
           ? apiCount
           : activeClientParticipants.length,
         0,
-        VISIO_MAX_COACHEES,
+        sessionCoachCapacity,
         activeClientParticipants.length,
       );
     }, [
       activeClientParticipants.length,
+      sessionCoachCapacity,
       session?.reserved_participants_count,
     ]);
 
@@ -793,11 +809,12 @@ export default function VisioDetailPage() {
       return clampInteger(
         session?.min_participants,
         1,
-        VISIO_MAX_COACHEES,
+        sessionCoachCapacity,
         1,
       );
     }, [
       session?.min_participants,
+      sessionCoachCapacity,
     ]);
 
   const minimumReached =
@@ -806,11 +823,11 @@ export default function VisioDetailPage() {
 
   const capacityReached =
     reservedClientCount >=
-    VISIO_MAX_COACHEES;
+    sessionCoachCapacity;
 
   const totalParticipantCount =
     Math.min(
-      VISIO_MAX_TOTAL_PARTICIPANTS,
+      sessionTotalCapacity,
       1 + reservedClientCount,
     );
 
@@ -1049,7 +1066,7 @@ export default function VisioDetailPage() {
         if (!canJoin) {
           if (sessionFullForCurrentUser) {
             throw new Error(
-              "Cette séance a déjà atteint sa capacité maximale de quatre coachés.",
+              "Cette séance a déjà atteint le nombre de places défini par l’intervenant.",
             );
           }
 
@@ -1434,7 +1451,7 @@ export default function VisioDetailPage() {
 
                     <strong className="block text-lg font-black">
                       {paidClientCount}/
-                      {VISIO_MAX_COACHEES}
+                      {sessionCoachCapacity}
                     </strong>
 
                     <span className="mt-1 block text-xs font-bold text-slate-500">
@@ -1485,7 +1502,7 @@ export default function VisioDetailPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         {focusMode && (
                           <span className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-slate-200 md:inline-flex">
-                            {totalParticipantCount}/{VISIO_MAX_TOTAL_PARTICIPANTS} participants
+                            {totalParticipantCount}/{sessionTotalCapacity} participants
                           </span>
                         )}
 
@@ -1739,57 +1756,6 @@ export default function VisioDetailPage() {
                   </div>
                 </section>
 
-                {/* Capacité */}
-
-                <section className="rounded-[2rem] border border-orange-100 bg-orange-50 p-5">
-                  <h2 className="flex items-center gap-2 text-lg font-black text-slate-950">
-                    <Users
-                      className="text-orange-700"
-                      size={21}
-                    />
-
-                    Capacité V1
-                  </h2>
-
-                  <div className="mt-4 grid gap-3">
-                    <div className="rounded-2xl bg-white p-4">
-                      <strong className="block text-sm font-black text-slate-950">
-                        1 intervenant
-                      </strong>
-
-                      <span className="mt-1 block text-xs font-semibold text-slate-500">
-                        Organisateur de la
-                        séance
-                      </span>
-                    </div>
-
-                    <div className="rounded-2xl bg-white p-4">
-                      <strong className="block text-sm font-black text-slate-950">
-                        4 coachés maximum
-                      </strong>
-
-                      <span className="mt-1 block text-xs font-semibold text-slate-500">
-                        Participants clients
-                      </span>
-                    </div>
-
-                    <div className="rounded-2xl bg-white p-4">
-                      <strong className="block text-sm font-black text-slate-950">
-                        {totalParticipantCount}/
-                        {
-                          VISIO_MAX_TOTAL_PARTICIPANTS
-                        }{" "}
-                        personnes
-                      </strong>
-
-                      <span className="mt-1 block text-xs font-semibold text-slate-500">
-                        Capacité totale de la
-                        salle
-                      </span>
-                    </div>
-                  </div>
-                </section>
-
                 {/* Participants */}
 
                 <section className="rounded-[2rem] bg-white p-5 shadow-sm">
@@ -1805,7 +1771,7 @@ export default function VisioDetailPage() {
 
                     <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-orange-700">
                       {reservedClientCount}/
-                      {VISIO_MAX_COACHEES}
+                      {sessionCoachCapacity}
                     </span>
                   </div>
 

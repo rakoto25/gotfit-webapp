@@ -195,8 +195,7 @@ export type CreateVisioSessionPayload = {
   duration_minutes: number;
 
   /**
-   * Nombre de coachés.
-   * Maximum prévu pour la V1 : 2.
+   * Nombre de coachés choisi par l’intervenant.
    */
   min_participants: number;
   max_participants?: number | null;

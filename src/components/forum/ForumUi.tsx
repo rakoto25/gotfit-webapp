@@ -34,12 +34,15 @@ export function ChannelNav({ channels, selected, onSelect }: {
   onSelect: (slug: string) => void;
 }) {
   return (
-    <nav aria-label="Canaux du forum" className="grid gap-2">
-      <button type="button" onClick={() => onSelect("")} className={`rounded-2xl px-4 py-3 text-left text-sm font-black transition ${!selected ? "bg-slate-950 text-white" : "bg-white text-slate-700 hover:bg-orange-50"}`}>
-        Toutes les discussions
+    <nav aria-label="Canaux du forum" className="grid gap-1.5">
+      <button type="button" onClick={() => onSelect("")} aria-current={!selected ? "page" : undefined} className={`rounded-2xl px-4 py-3 text-left text-sm font-black transition ${!selected ? "bg-slate-950 text-white shadow-md" : "text-slate-700 hover:bg-slate-50"}`}>
+        <span className="flex items-center justify-between gap-3">
+          Toutes les discussions
+          <span className={`h-2 w-2 rounded-full ${!selected ? "bg-orange-400" : "bg-slate-300"}`} />
+        </span>
       </button>
       {channels.map((channel) => (
-        <button key={channel.id} type="button" onClick={() => onSelect(channel.slug)} className={`rounded-2xl border px-4 py-3 text-left transition ${selected === channel.slug ? "border-orange-300 bg-orange-50" : "border-transparent bg-white hover:border-orange-100"}`}>
+        <button key={channel.id} type="button" onClick={() => onSelect(channel.slug)} aria-current={selected === channel.slug ? "page" : undefined} className={`rounded-2xl border px-4 py-3 text-left transition ${selected === channel.slug ? "border-orange-200 bg-orange-50 shadow-sm" : "border-transparent hover:border-slate-200 hover:bg-slate-50"}`}>
           <span className="flex items-center justify-between gap-3 text-sm font-black text-slate-900">
             <span className="flex min-w-0 items-center gap-2">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: channel.color || "#ea580c" }} />
@@ -145,12 +148,12 @@ export function MentionComposer({ value, onChange, mentionIds, onMentionIdsChang
 
 export function ForumTopLinks({ unreadCount = 0, admin = false }: { unreadCount?: number; admin?: boolean }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Link href="/forum-coachs/notifications" className="relative inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-white hover:bg-white/15">
+    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+      <Link href="/forum-coachs/notifications" className="relative inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-xs font-black text-white backdrop-blur-sm transition hover:bg-white/15">
         <Bell size={16} /> Notifications
         {unreadCount > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px]">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </Link>
-      {admin && <Link href="/admin/forum" className="rounded-full bg-orange-500 px-4 py-2 text-xs font-black text-white hover:bg-orange-600">Modération</Link>}
+      {admin && <Link href="/admin/forum" className="inline-flex min-h-10 items-center rounded-xl bg-orange-500 px-4 py-2 text-xs font-black text-white transition hover:bg-orange-600">Modération</Link>}
     </div>
   );
 }

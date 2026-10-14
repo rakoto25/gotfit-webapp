@@ -48,19 +48,13 @@ import {
 } from "@/lib/visio";
 
 /* =========================================================
-   CONFIGURATION VISIO V1
+   CONFIGURATION VISIO
 ========================================================= */
 
 /**
- * Capacité maximale :
- *
- * - 1 intervenant organisateur ;
- * - 4 coachés maximum ;
- * - 5 personnes au total.
- *
- * Les champs Laravel `min_participants` et
- * `max_participants` représentent ici le nombre
- * de coachés, sans compter l’intervenant.
+ * La capacité est choisie par l’intervenant à la création.
+ * La limite technique protège la salle sans imposer une
+ * capacité fixe dans l’interface.
  */
 const VISIO_MAX_COACHEES = 4;
 const VISIO_MIN_COACHEES = 1;
@@ -84,7 +78,7 @@ const EMPTY_FORM: CreateVisioSessionPayload = {
   start_at: "",
   duration_minutes: DEFAULT_DURATION_MINUTES,
   min_participants: VISIO_MIN_COACHEES,
-  max_participants: VISIO_MAX_COACHEES,
+  max_participants: VISIO_MIN_COACHEES,
   price: DEFAULT_PRICE,
   currency: DEFAULT_CURRENCY,
 };
@@ -184,7 +178,7 @@ function createInitialForm():
       VISIO_MIN_COACHEES,
 
     max_participants:
-      VISIO_MAX_COACHEES,
+      VISIO_MIN_COACHEES,
 
     price: DEFAULT_PRICE,
 
@@ -313,6 +307,7 @@ function isPaidPaymentStatus(
 function getPaidCoacheesCount(
   session: VisioSession,
 ): number {
+  const capacity = getSessionCoachCapacity(session);
   const directCount = Number(
     session.paid_participants_count,
   );
@@ -321,7 +316,7 @@ function getPaidCoacheesCount(
     return clamp(
       Math.floor(directCount),
       0,
-      VISIO_MAX_COACHEES,
+      capacity,
     );
   }
 
@@ -344,7 +339,18 @@ function getPaidCoacheesCount(
   return clamp(
     calculatedCount,
     0,
+    capacity,
+  );
+}
+
+function getSessionCoachCapacity(
+  session: VisioSession,
+): number {
+  return clampInteger(
+    session.max_participants,
+    VISIO_MIN_COACHEES,
     VISIO_MAX_COACHEES,
+    VISIO_MIN_COACHEES,
   );
 }
 
@@ -439,21 +445,21 @@ function validateForm(
     return `La durée doit être comprise entre ${MIN_DURATION_MINUTES} et ${MAX_DURATION_MINUTES} minutes.`;
   }
 
-  const minimumParticipants =
+  const coachCapacity =
     Number(
-      form.min_participants,
+      form.max_participants,
     );
 
   if (
     !Number.isFinite(
-      minimumParticipants,
+      coachCapacity,
     ) ||
-    minimumParticipants <
+    coachCapacity <
       VISIO_MIN_COACHEES ||
-    minimumParticipants >
+    coachCapacity >
       VISIO_MAX_COACHEES
   ) {
-    return "Le nombre minimum de coachés doit être compris entre 1 et 4.";
+    return "Le nombre de coachés doit être compris entre 1 et 4.";
   }
 
   const price =
@@ -737,9 +743,9 @@ export default function VisioPage() {
       return;
     }
 
-    const normalizedMinimum =
+    const normalizedCapacity =
       clampInteger(
-        form.min_participants,
+        form.max_participants,
         VISIO_MIN_COACHEES,
         VISIO_MAX_COACHEES,
         VISIO_MIN_COACHEES,
@@ -789,16 +795,10 @@ export default function VisioPage() {
         normalizedDuration,
 
       min_participants:
-        normalizedMinimum,
+        VISIO_MIN_COACHEES,
 
-      /**
-       * Valeur non modifiable côté frontend.
-       *
-       * L’API Laravel doit également refuser
-       * toute valeur supérieure à 2.
-       */
       max_participants:
-        VISIO_MAX_COACHEES,
+        normalizedCapacity,
 
       price:
         normalizedPrice,
@@ -887,7 +887,7 @@ export default function VisioPage() {
               <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-orange-700 shadow-sm">
                 <Video size={16} />
 
-                Visio GotFit · 5 personnes max
+                Visio GotFit
               </span>
 
               <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-tight sm:text-6xl">
@@ -895,11 +895,8 @@ export default function VisioPage() {
               </h1>
 
               <p className="mt-5 max-w-2xl text-base font-medium leading-8 text-slate-600">
-                Créez, réservez et rejoignez
-                des séances en ligne. Chaque
-                visio accueille un intervenant
-                et jusqu’à quatre coachés, soit
-                cinq participants maximum.
+                Créez, réservez et rejoignez des séances en ligne.
+                L’intervenant définit le nombre de coachés adapté à chaque accompagnement.
               </p>
             </div>
 
@@ -1086,9 +1083,7 @@ export default function VisioPage() {
                   </h2>
 
                   <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
-                    Une séance peut accueillir
-                    un intervenant et quatre
-                    coachés au maximum.
+                    Définissez simplement le format et le nombre de coachés pour cette séance.
                   </p>
                 </div>
 
@@ -1103,55 +1098,6 @@ export default function VisioPage() {
                 >
                   <X size={18} />
                 </button>
-              </div>
-
-              {/* Capacité fixe */}
-
-              <div className="mb-6 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-orange-100 bg-orange-50 p-4">
-                  <Video
-                    size={20}
-                    className="text-orange-700"
-                  />
-
-                  <strong className="mt-3 block text-lg font-black text-slate-950">
-                    1 intervenant
-                  </strong>
-
-                  <span className="mt-1 block text-xs font-semibold text-slate-500">
-                    Organisateur
-                  </span>
-                </div>
-
-                <div className="rounded-2xl border border-orange-100 bg-orange-50 p-4">
-                  <Users
-                    size={20}
-                    className="text-orange-700"
-                  />
-
-                  <strong className="mt-3 block text-lg font-black text-slate-950">
-                    4 coachés max.
-                  </strong>
-
-                  <span className="mt-1 block text-xs font-semibold text-slate-500">
-                    Participants clients
-                  </span>
-                </div>
-
-                <div className="rounded-2xl border border-orange-100 bg-orange-50 p-4">
-                  <ShieldCheck
-                    size={20}
-                    className="text-orange-700"
-                  />
-
-                  <strong className="mt-3 block text-lg font-black text-slate-950">
-                    5 personnes
-                  </strong>
-
-                  <span className="mt-1 block text-xs font-semibold text-slate-500">
-                    Capacité totale
-                  </span>
-                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -1264,26 +1210,20 @@ export default function VisioPage() {
                   />
                 </label>
 
-                <label className="grid gap-2 text-sm font-black text-slate-700">
-                  Minimum de coachés
+                <label className="grid gap-2 text-sm font-black text-slate-700 md:col-span-2">
+                  Nombre de coachés
 
                   <select
                     value={
-                      form.min_participants
+                      form.max_participants ?? VISIO_MIN_COACHEES
                     }
                     onChange={(event) => {
                       setForm(
                         (current) => ({
                           ...current,
 
-                          min_participants:
-                            Number(
-                              event.target
-                                .value,
-                            ),
-
                           max_participants:
-                            VISIO_MAX_COACHEES,
+                            Number(event.target.value),
                         }),
                       );
                     }}
@@ -1306,21 +1246,10 @@ export default function VisioPage() {
                       4 coachés
                     </option>
                   </select>
+                  <span className="text-xs font-semibold text-slate-500">
+                    Vous choisissez la capacité adaptée à votre accompagnement.
+                  </span>
                 </label>
-
-                <div className="grid gap-2 text-sm font-black text-slate-700">
-                  Maximum de coachés
-
-                  <div className="gotfit-input flex min-h-12 items-center justify-between bg-slate-50">
-                    <span>
-                      4 coachés maximum
-                    </span>
-
-                    <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-orange-700">
-                      Fixe V1
-                    </span>
-                  </div>
-                </div>
 
                 <div className="grid gap-2 text-sm font-black text-slate-700 sm:col-span-2">
                   Paiement
@@ -1419,6 +1348,8 @@ export default function VisioPage() {
                     getPaidCoacheesCount(
                       session,
                     );
+                  const coachCapacity =
+                    getSessionCoachCapacity(session);
 
                   return (
                     <Link
@@ -1488,25 +1419,11 @@ export default function VisioPage() {
                             />
 
                             <strong className="text-sm font-black">
-                              {paidCoachees}/
-                              {
-                                VISIO_MAX_COACHEES
-                              }{" "}
+                              {paidCoachees}/{coachCapacity}{" "}
                               coachés
                             </strong>
                           </div>
                         </div>
-                      </div>
-
-                      <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-semibold text-slate-500">
-                          Capacité totale
-                        </p>
-
-                        <p className="mt-1 text-sm font-black text-slate-950">
-                          1 intervenant + 2
-                          coachés maximum
-                        </p>
                       </div>
 
                       <div className="mt-5 flex items-center justify-between gap-3">

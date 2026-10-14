@@ -8,11 +8,10 @@ import type {
 } from "@/types/auth";
 
 /* =========================================================
-   CONFIGURATION VISIO V1
+   CONFIGURATION VISIO
 ========================================================= */
 
 export const VISIO_MAX_COACHEES = 4;
-export const VISIO_MAX_TOTAL_PARTICIPANTS = 5;
 
 /* =========================================================
    TYPES
@@ -211,7 +210,7 @@ export type CreateVisioSessionPayload = {
   min_participants: number;
 
   /**
-   * Toujours limité à deux pour la V1.
+   * Nombre de coachés choisi par l’intervenant.
    */
   max_participants?:
     | number
@@ -1288,6 +1287,14 @@ export async function createVisioSession(
       VISIO_MAX_COACHEES,
     );
 
+  const normalizedMaximum =
+    normalizeInteger(
+      body.max_participants,
+      normalizedMinimum,
+      normalizedMinimum,
+      VISIO_MAX_COACHEES,
+    );
+
   const normalizedDuration =
     normalizeInteger(
       body.duration_minutes,
@@ -1327,12 +1334,8 @@ export async function createVisioSession(
           min_participants:
             normalizedMinimum,
 
-          /**
-           * Règle fixe de la V1 :
-           * quatre coachés maximum.
-           */
           max_participants:
-            VISIO_MAX_COACHEES,
+            normalizedMaximum,
 
           price:
             normalizedPrice,
