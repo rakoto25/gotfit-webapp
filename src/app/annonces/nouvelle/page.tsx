@@ -297,16 +297,19 @@ export default function NewClientAnnoncePage() {
                     <label>
                       <span className="mb-2 block text-sm font-black">Budget par séance (optionnel)</span>
                       <div className="relative">
-                        <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <Euro className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           value={budget}
                           onChange={(event) => setBudget(event.target.value)}
-                          className="gotfit-input pl-11"
+                          className="gotfit-input gotfit-input-leading-icon gotfit-input-leading-icon-with-unit"
                           placeholder="40"
                         />
+                        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-500">
+                          € / séance
+                        </span>
                       </div>
                     </label>
                     <label>

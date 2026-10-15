@@ -6,10 +6,12 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   BadgeEuro,
+  Check,
   ImageIcon,
   Loader2,
   MessageCircle,
   Paperclip,
+  Pencil,
   RefreshCw,
   Reply,
   Search,
@@ -17,6 +19,7 @@ import {
   SmilePlus,
   UserRound,
   Video,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -31,6 +34,7 @@ import {
   MessageReaction,
   createConversation,
   createChatOffer,
+  deleteConversationMessage,
   fetchConversations,
   fetchMessageContacts,
   fetchMessages,
@@ -38,7 +42,22 @@ import {
   reactToMessage,
   removeMessageReaction,
   sendConversationMessage,
+  updateConversationMessage,
 } from "@/lib/marketplace";
+
+const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
+
+function validateMedia(file: File) {
+  if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+    return "Choisissez une image ou une vidéo.";
+  }
+
+  if (file.size > MAX_MEDIA_SIZE) {
+    return "Le fichier ne doit pas dépasser 50 Mo.";
+  }
+
+  return "";
+}
 
 const reactionOptions: Array<{
   value: MessageReaction["reaction"];
@@ -62,6 +81,7 @@ function getPhoto(user?: MessageContact | null) {
 
 function getMessageText(message?: MessageItem | null) {
   if (!message) return "Aucun message";
+  if (message.is_deleted || message.type === "deleted") return "Message supprimé";
   if (message.message?.trim()) return message.message;
   if (message.media_type === "image") return "Image envoyee";
   if (message.media_type === "video") return "Video envoyee";
@@ -115,6 +135,8 @@ function MessagesContent() {
   const searchParams = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement | null>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
   const offerCreationInFlight = useRef(false);
 
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -127,6 +149,11 @@ function MessagesContent() {
   const [message, setMessage] = useState("");
   const [media, setMedia] = useState<File | null>(null);
   const [replyTo, setReplyTo] = useState<MessageItem | null>(null);
+  const [editingMessage, setEditingMessage] = useState<MessageItem | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [editingMedia, setEditingMedia] = useState<File | null>(null);
+  const [removeExistingMedia, setRemoveExistingMedia] = useState(false);
+  const [messageActionBusy, setMessageActionBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -338,6 +365,85 @@ function MessagesContent() {
       setError(getErrorMessage(err, "Impossible d'envoyer le message."));
     } finally {
       setSending(false);
+    }
+  }
+
+  function chooseMedia(file: File | null, target: "send" | "edit") {
+    if (!file) return;
+
+    const validationError = validateMedia(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError("");
+    if (target === "send") {
+      setMedia(file);
+      return;
+    }
+
+    setEditingMedia(file);
+    setRemoveExistingMedia(false);
+  }
+
+  function openMessageEditor(item: MessageItem) {
+    setEditingMessage(item);
+    setEditingText(item.message || "");
+    setEditingMedia(null);
+    setRemoveExistingMedia(false);
+    setError("");
+  }
+
+  async function handleUpdateMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingMessage || !activeConversation) return;
+
+    const keepsExistingMedia = Boolean(
+      editingMessage.media_url || editingMessage.media_full_url
+    ) && !removeExistingMedia;
+
+    if (!editingText.trim() && !editingMedia && !keepsExistingMedia) {
+      setError("Conservez un texte ou un média dans le message.");
+      return;
+    }
+
+    try {
+      setMessageActionBusy(true);
+      setError("");
+      await updateConversationMessage(editingMessage.id, {
+        message: editingText,
+        media: editingMedia,
+        remove_media: removeExistingMedia,
+      });
+      setEditingMessage(null);
+      setEditingMedia(null);
+      await loadMessages(activeConversation);
+      await loadInbox({ preferredConversationId: activeConversation.id });
+      setSuccess("Message modifié.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible de modifier le message."));
+    } finally {
+      setMessageActionBusy(false);
+    }
+  }
+
+  async function handleDeleteMessage(item: MessageItem) {
+    if (!activeConversation) return;
+    if (!window.confirm("Supprimer ce message pour tous les participants ?")) return;
+
+    try {
+      setMessageActionBusy(true);
+      setError("");
+      await deleteConversationMessage(item.id);
+      if (replyTo?.id === item.id) setReplyTo(null);
+      await loadMessages(activeConversation);
+      await loadInbox({ preferredConversationId: activeConversation.id });
+      setSuccess("Message supprimé.");
+    } catch (err) {
+      setError(getErrorMessage(err, "Impossible de supprimer le message."));
+    } finally {
+      setMessageActionBusy(false);
     }
   }
 
@@ -660,6 +766,13 @@ function MessagesContent() {
                           <p className="mt-2 text-sm font-semibold leading-7 text-slate-500">
                             Envoyez le premier message pour démarrer la discussion.
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => messageInputRef.current?.focus()}
+                            className="mt-5 inline-flex items-center gap-2 rounded-full bg-orange-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20"
+                          >
+                            <Send size={16} /> Écrire le premier message
+                          </button>
                         </div>
                       </div>
                     ) : (
@@ -670,6 +783,7 @@ function MessagesContent() {
                         );
                         const reactions = countReactions(item);
                         const myReaction = getMyReaction(item, currentUserId);
+                        const deleted = item.is_deleted || item.type === "deleted";
 
                         return (
                           <article
@@ -685,7 +799,7 @@ function MessagesContent() {
                                     : "rounded-bl-md bg-white p-4 text-slate-950 shadow-sm"
                               }`}
                             >
-                              {item.parent && (
+                              {item.parent && !deleted && (
                                 <div
                                   className={`mb-3 rounded-2xl border-l-4 px-3 py-2 text-xs font-semibold ${
                                     mine
@@ -714,13 +828,20 @@ function MessagesContent() {
                                 />
                               )}
 
-                              {item.message && !item.offer && (
+                              {deleted && (
+                                <p className={`inline-flex items-center gap-2 text-sm font-bold italic ${mine ? "text-white/80" : "text-slate-400"}`}>
+                                  <Trash2 size={15} />
+                                  Message supprimé
+                                </p>
+                              )}
+
+                              {item.message && !item.offer && !deleted && (
                                 <p className="whitespace-pre-wrap text-sm font-semibold leading-7">
                                   {item.message}
                                 </p>
                               )}
 
-                              {mediaUrl && item.media_type === "image" && (
+                              {mediaUrl && item.media_type === "image" && !deleted && (
                                 <a
                                   href={mediaUrl}
                                   target="_blank"
@@ -734,7 +855,7 @@ function MessagesContent() {
                                 </a>
                               )}
 
-                              {mediaUrl && item.media_type === "video" && (
+                              {mediaUrl && item.media_type === "video" && !deleted && (
                                 <video
                                   src={mediaUrl}
                                   controls
@@ -754,22 +875,46 @@ function MessagesContent() {
                                 <span>
                                   {item.sender?.name || (mine ? "Moi" : "Contact")} ·{" "}
                                   {formatMessageDate(item.created_at)}
+                                  {item.is_edited && !deleted ? " · modifié" : ""}
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setReplyTo(item)}
-                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${
-                                    mine
-                                      ? "bg-white/10 text-white"
-                                      : "bg-orange-50 text-orange-700"
-                                  }`}
-                                >
-                                  <Reply size={13} />
-                                  Répondre
-                                </button>
+                                {!deleted && (
+                                  <span className="flex flex-wrap items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setReplyTo(item)}
+                                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${
+                                        mine
+                                          ? "bg-white/10 text-white"
+                                          : "bg-orange-50 text-orange-700"
+                                      }`}
+                                    >
+                                      <Reply size={13} /> Répondre
+                                    </button>
+                                    {mine && !item.offer && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => openMessageEditor(item)}
+                                          disabled={messageActionBusy}
+                                          className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-white hover:bg-white/20"
+                                        >
+                                          <Pencil size={12} /> Modifier
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => void handleDeleteMessage(item)}
+                                          disabled={messageActionBusy}
+                                          className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-white hover:bg-red-500"
+                                        >
+                                          <Trash2 size={12} /> Supprimer
+                                        </button>
+                                      </>
+                                    )}
+                                  </span>
+                                )}
                               </div>
 
-                              {!item.offer && <div className="mt-3 flex flex-wrap items-center gap-1">
+                              {!item.offer && !deleted && <div className="mt-3 flex flex-wrap items-center gap-1">
                                 {reactionOptions.map((reaction) => (
                                   <button
                                     type="button"
@@ -802,7 +947,7 @@ function MessagesContent() {
 
                   <form
                     onSubmit={handleSend}
-                    className="border-t border-orange-100 bg-white p-4"
+                    className="sticky bottom-0 border-t border-orange-100 bg-white p-4 shadow-[0_-12px_35px_rgba(15,23,42,0.06)]"
                   >
                     {replyTo && (
                       <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-orange-50 px-4 py-3">
@@ -850,14 +995,15 @@ function MessagesContent() {
                       </div>
                     )}
 
-                    <div className="flex items-end gap-2 rounded-[1.5rem] bg-slate-50 p-2">
+                    <label htmlFor="gotfit-message" className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                      Votre message
+                    </label>
+                    <div className="flex items-end gap-2 rounded-[1.5rem] border-2 border-orange-200 bg-white p-2 shadow-sm transition focus-within:border-orange-500 focus-within:ring-4 focus-within:ring-orange-100">
                       <input
                         ref={fileInputRef}
                         type="file"
                         accept="image/*,video/*"
-                        onChange={(event) =>
-                          setMedia(event.target.files?.[0] || null)
-                        }
+                        onChange={(event) => chooseMedia(event.target.files?.[0] || null, "send")}
                         className="hidden"
                       />
 
@@ -871,16 +1017,18 @@ function MessagesContent() {
                       </button>
 
                       <textarea
+                        id="gotfit-message"
+                        ref={messageInputRef}
                         value={message}
                         onChange={(event) => setMessage(event.target.value)}
                         placeholder="Écrire un message..."
                         rows={1}
-                        className="max-h-36 min-h-12 flex-1 resize-none bg-transparent px-2 py-3 text-sm font-semibold leading-6 outline-none placeholder:text-slate-400"
+                        className="max-h-36 min-h-12 flex-1 resize-none bg-transparent px-2 py-3 text-base font-semibold leading-6 text-slate-950 outline-none placeholder:font-bold placeholder:text-slate-500"
                       />
 
                       <button
                         type="submit"
-                        disabled={sending}
+                        disabled={sending || (!message.trim() && !media)}
                         className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {sending ? (
@@ -911,6 +1059,112 @@ function MessagesContent() {
           </section>
         </div>
       </main>
+
+      {editingMessage && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            onClick={() => !messageActionBusy && setEditingMessage(null)}
+            aria-label="Fermer la modification du message"
+          />
+          <form
+            onSubmit={handleUpdateMessage}
+            className="relative z-10 w-full max-w-xl rounded-[2rem] bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">
+                  Votre message
+                </span>
+                <h2 className="mt-2 text-2xl font-black">Modifier le contenu</h2>
+                <p className="mt-2 text-sm font-semibold text-slate-500">
+                  Corrigez le texte, remplacez le média ou retirez-le.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingMessage(null)}
+                disabled={messageActionBusy}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Fermer"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <label className="mt-6 block">
+              <span className="mb-2 block text-sm font-black text-slate-700">Texte du message</span>
+              <textarea
+                value={editingText}
+                onChange={(event) => setEditingText(event.target.value)}
+                rows={5}
+                maxLength={5000}
+                placeholder="Votre message…"
+                className="w-full resize-y rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-base font-semibold outline-none focus:border-orange-500 focus:bg-white"
+              />
+            </label>
+
+            {(editingMessage.media_url || editingMessage.media_full_url) && !removeExistingMedia && !editingMedia && (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
+                <span className="inline-flex min-w-0 items-center gap-2 text-sm font-bold text-orange-800">
+                  {editingMessage.media_type === "video" ? <Video size={18} /> : <ImageIcon size={18} />}
+                  Média actuel conservé
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRemoveExistingMedia(true)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-2 text-xs font-black text-red-600"
+                >
+                  <Trash2 size={14} /> Retirer
+                </button>
+              </div>
+            )}
+
+            {removeExistingMedia && !editingMedia && (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                Le média actuel sera retiré.
+                <button type="button" onClick={() => setRemoveExistingMedia(false)} className="rounded-full bg-white px-3 py-2 text-xs font-black">
+                  Annuler
+                </button>
+              </div>
+            )}
+
+            {editingMedia && (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+                <span className="truncate">Nouveau média : {editingMedia.name}</span>
+                <button type="button" onClick={() => setEditingMedia(null)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white">
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+
+            <input
+              ref={editFileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              onChange={(event) => chooseMedia(event.target.files?.[0] || null, "edit")}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => editFileInputRef.current?.click()}
+              className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:border-orange-300 hover:text-orange-700"
+            >
+              <Paperclip size={17} /> {editingMessage.media_url ? "Remplacer le média" : "Ajouter un média"}
+            </button>
+
+            <button
+              type="submit"
+              disabled={messageActionBusy}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 disabled:opacity-60"
+            >
+              {messageActionBusy ? <Loader2 className="animate-spin" size={18} /> : <Check size={18} />}
+              Enregistrer les modifications
+            </button>
+          </form>
+        </div>
+      )}
 
       {offerOpen && activeConversation && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">

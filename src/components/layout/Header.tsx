@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  Bell,
   CircleHelp,
   LogIn,
   Menu,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { getCurrentUser, isAdmin, isCoach } from "@/lib/auth";
+import { fetchNotificationUnreadCount } from "@/lib/marketplace";
 import type { User } from "@/types/auth";
 
 const navLinks = [
@@ -39,6 +41,7 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const visibleNavLinks = [
     ...navLinks,
     ...(user ? [{ label: "Mes packs", href: "/packs" }] : []),
@@ -60,6 +63,32 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
       window.removeEventListener("gotfit:auth", syncUser);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const count = await fetchNotificationUnreadCount();
+        if (!cancelled) setUnreadNotifications(count);
+      } catch {
+        // La navigation reste utilisable si le compteur est temporairement indisponible.
+      }
+    };
+
+    void refresh();
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [user]);
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -111,6 +140,18 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
           <div className="hidden items-center gap-2 lg:flex">
             {user ? (
               <>
+                <Link
+                  href="/notifications"
+                  className="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-700 transition hover:border-[var(--brand)] hover:bg-[var(--canvas)]"
+                  aria-label={`${unreadNotifications} notification${unreadNotifications > 1 ? "s" : ""} non lue${unreadNotifications > 1 ? "s" : ""}`}
+                >
+                  <Bell size={18} />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-orange-600 px-1 text-[10px] font-black text-white ring-2 ring-white">
+                      {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                    </span>
+                  )}
+                </Link>
                 <Link
                   href="/messages"
                   className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-700 transition hover:border-[var(--brand)] hover:bg-[var(--canvas)]"
@@ -249,7 +290,9 @@ export default function Header({ showMobileShortcuts = true }: HeaderProps) {
               label: "Packs",
               icon: PackageCheck,
             },
-            { href: "/aide", label: "Aide", icon: CircleHelp },
+            user
+              ? { href: "/notifications", label: "Alertes", icon: Bell }
+              : { href: "/aide", label: "Aide", icon: CircleHelp },
             {
               href: user ? "/profile" : "/auth/login",
               label: user ? "Profil" : "Connexion",

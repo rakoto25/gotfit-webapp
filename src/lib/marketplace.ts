@@ -899,6 +899,10 @@ export type MessageItem = {
   offer?: Offer | null;
   created_at?: string | null;
   updated_at?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  is_edited?: boolean;
+  is_deleted?: boolean;
 };
 
 export type Conversation = {
@@ -1167,6 +1171,52 @@ export async function sendConversationMessage(
   return payload.message;
 }
 
+export async function updateConversationMessage(
+  messageId: string | number,
+  body: {
+    message?: string;
+    media?: File | null;
+    remove_media?: boolean;
+  }
+) {
+  const formData = new FormData();
+
+  formData.append("message", body.message?.trim() || "");
+
+  if (body.media) {
+    formData.append("media", body.media);
+  }
+
+  if (body.remove_media) {
+    formData.append("remove_media", "1");
+  }
+
+  const payload = await apiRequest<{ message?: MessageItem }>(
+    `/message/${messageId}/update`,
+    {
+      method: "POST",
+      auth: true,
+      body: formData,
+    }
+  );
+
+  if (!payload.message?.id) {
+    throw new Error("Le message a été modifié, mais la réponse API est incomplète.");
+  }
+
+  return payload.message;
+}
+
+export async function deleteConversationMessage(messageId: string | number) {
+  return apiRequest<{ deleted?: boolean; message?: MessageItem }>(
+    `/message/${messageId}`,
+    {
+      method: "DELETE",
+      auth: true,
+    }
+  );
+}
+
 export async function reactToMessage(
   messageId: string | number,
   reaction: MessageReaction["reaction"]
@@ -1185,6 +1235,66 @@ export async function reactToMessage(
 
 export async function removeMessageReaction(messageId: string | number) {
   return apiRequest<{ message?: MessageItem }>(`/message/${messageId}/reaction`, {
+    method: "DELETE",
+    auth: true,
+  });
+}
+
+export type AppNotification = {
+  id: string;
+  type?: string;
+  data?: {
+    type?: string;
+    title?: string;
+    body?: string;
+    url?: string;
+    conversation_id?: number;
+    message_id?: number;
+    reservation_id?: number;
+    annonce_id?: number;
+    actor_name?: string;
+  };
+  read_at?: string | null;
+  created_at?: string | null;
+};
+
+export async function fetchNotifications() {
+  const payload = await apiRequest<{
+    notifications?: AppNotification[];
+    unread_count?: number;
+  }>("/notifications", { auth: true });
+
+  return {
+    notifications: payload.notifications || [],
+    unreadCount: Number(payload.unread_count || 0),
+  };
+}
+
+export async function fetchNotificationUnreadCount() {
+  const payload = await apiRequest<{ unread_count?: number }>(
+    "/notifications/unread-count",
+    { auth: true }
+  );
+
+  return Number(payload.unread_count || 0);
+}
+
+export function markNotificationRead(notificationId: string) {
+  return apiRequest(`/notifications/${notificationId}/read`, {
+    method: "PUT",
+    auth: true,
+  });
+}
+
+export function markAllNotificationsRead() {
+  return apiRequest("/notifications/read-all", {
+    method: "PUT",
+    auth: true,
+  });
+}
+
+export function deleteNotification(notificationId: string) {
+  return apiRequest(`/notifications/${notificationId}`, {
     method: "DELETE",
     auth: true,
   });
