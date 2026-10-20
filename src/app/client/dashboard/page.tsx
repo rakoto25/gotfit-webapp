@@ -8,9 +8,11 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  Heart,
   Loader2,
   Megaphone,
   MessageCircle,
+  NotebookPen,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -211,7 +213,7 @@ export default function ClientDashboardPage() {
             </div>
           </section>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {[
               ["/annonces", Sparkles, "Réserver", "Trouver une prestation"],
               ["/annonces/nouvelle", Megaphone, "Publier", "Rechercher un coach"],
@@ -220,6 +222,8 @@ export default function ClientDashboardPage() {
               ["/planning", CalendarCheck, "Planning", "Voir mes rendez-vous"],
               ["/visio", Video, "Visio", "Rejoindre une séance"],
               ["/messages", MessageCircle, "Messages", "Contacter mon coach"],
+              ["/favoris", Heart, "Mes favoris", "Retrouver mes coachs"],
+              ["/mes-notes", NotebookPen, "Mes notes", "Lire les notes partagées"],
               ["/packs", WalletCards, "Packs & cagnotte", formatMinorMoney(walletBalance, walletCurrency)],
             ].map(([href, Icon, title, subtitle]) => (
               <Link key={String(href)} href={String(href)} className="rounded-[1.5rem] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">

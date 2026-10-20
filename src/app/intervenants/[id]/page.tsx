@@ -8,6 +8,7 @@ import {
   BadgeCheck,
   CalendarCheck,
   CheckCircle2,
+  Heart,
   HeartPulse,
   Loader2,
   Mail,
@@ -25,6 +26,11 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { getCurrentUser, getToken, hasRole } from "@/lib/auth";
 import { getApiUrl, getNetworkErrorMessage } from "@/lib/api-config";
+import {
+  addCoachFavorite,
+  fetchCoachFavorites,
+  removeCoachFavorite,
+} from "@/lib/coach-favorites";
 import {
   getCoachCertifications,
   getCoachDescription,
@@ -264,6 +270,8 @@ export default function IntervenantDetailPage() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [reviewSuccess, setReviewSuccess] = useState("");
+  const [coachFavorite, setCoachFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -308,6 +316,54 @@ export default function IntervenantDetailPage() {
       mounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !getToken() || !hasRole(getCurrentUser(), "client")) {
+      return;
+    }
+
+    let mounted = true;
+
+    fetchCoachFavorites()
+      .then((items) => {
+        if (mounted) {
+          setCoachFavorite(items.some((item) => String(item.coach_id) === String(id)));
+        }
+      })
+      .catch(() => {
+        if (mounted) setCoachFavorite(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  async function toggleCoachFavorite() {
+    if (!id) return;
+
+    if (!getToken()) {
+      router.push(buildAuthUrl(`/intervenants/${id}`));
+      return;
+    }
+
+    if (!hasRole(getCurrentUser(), "client")) return;
+
+    try {
+      setFavoriteLoading(true);
+      if (coachFavorite) {
+        await removeCoachFavorite(id);
+        setCoachFavorite(false);
+      } else {
+        await addCoachFavorite(id);
+        setCoachFavorite(true);
+      }
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Impossible de mettre à jour ce favori."));
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -621,6 +677,23 @@ export default function IntervenantDetailPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-3">
+                      {(!getToken() || isClient) && (
+                        <button
+                          type="button"
+                          onClick={toggleCoachFavorite}
+                          disabled={favoriteLoading}
+                          aria-pressed={coachFavorite}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-4 text-sm font-black text-rose-600 transition hover:bg-rose-50 disabled:cursor-wait disabled:opacity-70"
+                        >
+                          {favoriteLoading ? (
+                            <Loader2 className="animate-spin" size={18} />
+                          ) : (
+                            <Heart size={18} className={coachFavorite ? "fill-rose-500" : ""} />
+                          )}
+                          {coachFavorite ? "Dans mes favoris" : "Ajouter aux favoris"}
+                        </button>
+                      )}
+
                       <Link
                         href={getProtectedUrl(reservationUrl)}
                         className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700"
