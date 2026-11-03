@@ -19,6 +19,9 @@ export const metadata: Metadata = {
     "coaching visio",
     "suivi sportif",
   ],
+  verification: {
+    google: "BNXeUf69buPwQUKUXJCm_L3VZq8tzJCM8gE1P7t_Qx8",
+  },
   openGraph: {
     type: "website",
     locale: "fr_FR",

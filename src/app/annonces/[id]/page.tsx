@@ -26,6 +26,7 @@ import {
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { getCurrentUser, getToken } from "@/lib/auth";
+import { fetchPublicRuntimeConfig } from "@/lib/runtime-config";
 import {
   Annonce,
   PaymentIntentPayload,
@@ -40,10 +41,6 @@ import {
   getMaxParticipants,
   reserveAnnonce,
 } from "@/lib/marketplace";
-
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY)
-  : null;
 
 function isClientRequest(annonce: Annonce | null) {
   return annonce?.announcement_type === "client_request";
@@ -253,6 +250,21 @@ export default function AnnonceDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(() => {
+    const key = process.env.NEXT_PUBLIC_STRIPE_KEY?.trim();
+    return key ? loadStripe(key) : null;
+  });
+
+  useEffect(() => {
+    if (stripePromise) return;
+    let active = true;
+    fetchPublicRuntimeConfig().then((config) => {
+      if (active && config.stripe_publishable_key) {
+        setStripePromise(loadStripe(config.stripe_publishable_key));
+      }
+    });
+    return () => { active = false; };
+  }, [stripePromise]);
 
   const image = useMemo(() => getImage(annonce), [annonce]);
   const availableDates = useMemo(() => getAvailableDates(annonce), [annonce]);
@@ -620,8 +632,8 @@ export default function AnnonceDetailPage() {
 
                     {!stripePromise ? (
                       <div className="rounded-[1.5rem] border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-700">
-                        Ajoutez NEXT_PUBLIC_STRIPE_KEY dans .env.local pour
-                        activer le formulaire Stripe côté webapp.
+                        Configurez la clé publique Stripe dans l’administration
+                        pour activer le formulaire de paiement sécurisé.
                       </div>
                     ) : (
                       <Elements

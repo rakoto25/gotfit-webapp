@@ -17,6 +17,7 @@ import {
 import { saveAuth } from "@/lib/auth";
 import { getAuthDestination } from "@/lib/auth-redirect";
 import { API_BASE_URL } from "@/lib/api-config";
+import { fetchPublicRuntimeConfig } from "@/lib/runtime-config";
 import type { User } from "@/types/auth";
 
 type RegisterRole = "client" | "intervenant";
@@ -171,8 +172,24 @@ export default function GoogleSignInButton({
   const [scriptError, setScriptError] = useState(false);
   const [buttonWidth, setButtonWidth] = useState(320);
 
-  const clientId =
-    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
+  const [clientId, setClientId] = useState(
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || ""
+  );
+  const [configLoaded, setConfigLoaded] = useState(Boolean(clientId));
+
+  useEffect(() => {
+    if (clientId) return;
+
+    let active = true;
+    fetchPublicRuntimeConfig().then((config) => {
+      if (active) {
+        setClientId(config.google_client_id || "");
+        setConfigLoaded(true);
+      }
+    });
+
+    return () => { active = false; };
+  }, [clientId]);
 
   const handleCredential = useCallback(
     async ({ credential }: GoogleCredentialResponse) => {
@@ -417,6 +434,15 @@ export default function GoogleSignInButton({
       window.google?.accounts?.id?.cancel?.();
     };
   }, []);
+
+  if (!configLoaded) {
+    return (
+      <div
+        className="h-11 animate-pulse rounded-full bg-slate-100"
+        aria-label="Chargement de Google"
+      />
+    );
+  }
 
   if (!clientId) {
     return (

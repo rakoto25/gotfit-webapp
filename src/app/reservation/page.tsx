@@ -29,6 +29,7 @@ import {
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { getToken } from "@/lib/auth";
+import { fetchPublicRuntimeConfig } from "@/lib/runtime-config";
 import {
   Annonce,
   PaymentIntentPayload,
@@ -44,10 +45,6 @@ import {
   reserveAnnonce,
   syncPaymentStatus,
 } from "@/lib/marketplace";
-
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY)
-  : null;
 
 function getToday() {
   const now = new Date();
@@ -376,6 +373,21 @@ function CheckoutForm({
 }
 
 function ReservationContent() {
+  const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(() => {
+    const key = process.env.NEXT_PUBLIC_STRIPE_KEY?.trim();
+    return key ? loadStripe(key) : null;
+  });
+
+  useEffect(() => {
+    if (stripePromise) return;
+    let active = true;
+    fetchPublicRuntimeConfig().then((config) => {
+      if (active && config.stripe_publishable_key) {
+        setStripePromise(loadStripe(config.stripe_publishable_key));
+      }
+    });
+    return () => { active = false; };
+  }, [stripePromise]);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -862,8 +874,8 @@ function ReservationContent() {
                     ) : (
                       <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
                         Clé Stripe manquante ou client_secret absent. Vérifiez
-                        NEXT_PUBLIC_STRIPE_KEY côté Next.js et la réponse API de
-                        création du paiement.
+                        la clé publique Stripe dans l’administration et la réponse
+                        API de création du paiement.
                       </div>
                     )}
                   </div>
