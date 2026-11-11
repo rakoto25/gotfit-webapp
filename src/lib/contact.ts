@@ -6,6 +6,7 @@ export type ContactPayload = {
   phone?: string;
   subject: string;
   message: string;
+  turnstile_token?: string;
 };
 
 export type ContactResponse = {

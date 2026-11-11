@@ -1,4 +1,5 @@
 "use client";
+import { PublicTurnstile } from "@/components/security/PublicTurnstile";
 
 import Link from "next/link";
 import {
@@ -30,6 +31,8 @@ export default function ForgotPasswordPage() {
   const [sentEmail, setSentEmail] =
     useState("");
 
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [loading, setLoading] =
     useState(false);
 
@@ -73,6 +76,7 @@ export default function ForgotPasswordPage() {
       const response =
         await requestPasswordReset(
           normalizedEmail,
+          turnstileToken,
         );
 
       setSentEmail(
@@ -90,6 +94,8 @@ export default function ForgotPasswordPage() {
           : "Impossible d’envoyer le lien de réinitialisation.",
       );
     } finally {
+      setTurnstileToken("");
+      setTurnstileResetKey((n) => n + 1);
       setLoading(false);
     }
   }
@@ -251,7 +257,8 @@ export default function ForgotPasswordPage() {
                   </div>
                 </div>
 
-                <button
+                <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+            <button
                   type="submit"
                   disabled={loading}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-600 to-orange-500 px-6 py-4 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition hover:-translate-y-0.5 hover:from-orange-700 hover:to-orange-600 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
