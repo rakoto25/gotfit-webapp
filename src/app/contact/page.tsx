@@ -1,4 +1,5 @@
 "use client";
+import { PublicTurnstile } from "@/components/security/PublicTurnstile";
 
 import { FormEvent, useState } from "react";
 import {
@@ -34,6 +35,8 @@ const initialForm: ContactFormState = {
 
 export default function ContactPage() {
   const [form, setForm] = useState<ContactFormState>(initialForm);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -55,6 +58,7 @@ export default function ContactPage() {
         phone: form.phone.trim(),
         subject: form.subject.trim(),
         message: form.message.trim(),
+        turnstile_token: turnstileToken,
       });
 
       if (!response.success) {
@@ -72,6 +76,8 @@ export default function ContactPage() {
           : "Impossible d’envoyer le message pour le moment."
       );
     } finally {
+      setTurnstileToken("");
+      setTurnstileResetKey((n) => n + 1);
       setLoading(false);
     }
   }
@@ -190,7 +196,8 @@ export default function ContactPage() {
                 <textarea className="gotfit-input min-h-40 resize-y" value={form.message} onChange={(e) => updateField("message", e.target.value)} required placeholder="Décrivez votre demande..." />
               </label>
 
-              <button type="submit" disabled={loading} className="gotfit-button gotfit-button-brand mt-6 px-7 disabled:opacity-60">
+              <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+            <button type="submit" disabled={loading} className="gotfit-button gotfit-button-brand mt-6 px-7 disabled:opacity-60">
                 {loading ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" /> : <Send size={18} />}
                 {loading ? "Envoi..." : "Envoyer le message"}
               </button>

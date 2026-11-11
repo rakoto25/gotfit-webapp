@@ -49,6 +49,7 @@ export type PasswordActionResponse = {
 };
 
 export type ResetPasswordPayload = {
+  turnstile_token?: string;
   email: string;
   token: string;
   password: string;
@@ -538,6 +539,7 @@ async function publicAuthRequest<T>(
 
 export async function requestPasswordReset(
   email: string,
+  turnstileToken = "",
 ): Promise<PasswordActionResponse> {
   const normalizedEmail =
     normalizeEmail(email);
@@ -556,6 +558,7 @@ export async function requestPasswordReset(
     "auth/forgot-password",
     {
       email: normalizedEmail,
+      turnstile_token: turnstileToken,
     },
   );
 }
@@ -634,6 +637,7 @@ export async function resetPassword(
       password,
       password_confirmation:
         passwordConfirmation,
+      turnstile_token: payload.turnstile_token,
     },
   );
 }

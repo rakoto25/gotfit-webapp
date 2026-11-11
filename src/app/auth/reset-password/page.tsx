@@ -1,4 +1,5 @@
 "use client";
+import { PublicTurnstile } from "@/components/security/PublicTurnstile";
 
 import Link from "next/link";
 import {
@@ -86,6 +87,8 @@ function ResetPasswordContent() {
   ] =
     useState(false);
 
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [loading, setLoading] =
     useState(false);
 
@@ -153,6 +156,7 @@ function ResetPasswordContent() {
           email,
           token,
           password,
+          turnstile_token: turnstileToken,
 
           password_confirmation:
             passwordConfirmation,
@@ -172,6 +176,8 @@ function ResetPasswordContent() {
           : "Impossible de réinitialiser le mot de passe.",
       );
     } finally {
+      setTurnstileToken("");
+      setTurnstileResetKey((n) => n + 1);
       setLoading(false);
     }
   }
@@ -566,7 +572,8 @@ function ResetPasswordContent() {
                   </div>
                 </div>
 
-                <button
+                <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+            <button
                   type="submit"
                   disabled={
                     loading ||

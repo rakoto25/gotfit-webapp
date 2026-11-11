@@ -1,4 +1,5 @@
 "use client";
+import { PublicTurnstile } from "@/components/security/PublicTurnstile";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
@@ -138,6 +139,8 @@ export default function RegisterPage() {
   const [showPasswords, setShowPasswords] =
     useState(false);
 
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const [documentError, setDocumentError] =
@@ -333,6 +336,7 @@ export default function RegisterPage() {
     try {
       const formData = new FormData();
 
+      formData.append("turnstile_token", turnstileToken);
       formData.append("name", name.trim());
       formData.append("email", email.trim());
       formData.append("phone", phone.trim());
@@ -423,6 +427,8 @@ export default function RegisterPage() {
           : "Une erreur est survenue pendant l’inscription."
       );
     } finally {
+      setTurnstileToken("");
+      setTurnstileResetKey((n) => n + 1);
       setLoading(false);
     }
   }
@@ -879,7 +885,8 @@ export default function RegisterPage() {
           {termsControl}
           {errorMessage}
 
-          <button
+          <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+            <button
             type="submit"
             disabled={loading}
             className="gotfit-button gotfit-button-dark w-full disabled:cursor-not-allowed disabled:opacity-60"

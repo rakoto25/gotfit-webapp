@@ -1,4 +1,5 @@
 "use client";
+import { PublicTurnstile } from "@/components/security/PublicTurnstile";
 
 import Link from "next/link";
 import {
@@ -199,6 +200,8 @@ function LoginPageContent() {
   ] =
     useState(false);
 
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [loading, setLoading] =
     useState(false);
 
@@ -315,6 +318,7 @@ function LoginPageContent() {
                 normalizedEmail,
 
               password,
+              turnstile_token: turnstileToken,
             }),
 
             cache: "no-store",
@@ -375,6 +379,8 @@ function LoginPageContent() {
           : "La connexion n’a pas pu aboutir.",
       );
     } finally {
+      setTurnstileToken("");
+      setTurnstileResetKey((n) => n + 1);
       setLoading(false);
     }
   }
@@ -624,7 +630,8 @@ function LoginPageContent() {
 
           {/* Bouton */}
 
-          <button
+          <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+            <button
             type="submit"
             disabled={loading}
             className="gotfit-button gotfit-button-dark"

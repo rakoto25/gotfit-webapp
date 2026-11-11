@@ -414,6 +414,9 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
+    if (response.status >= 500 && (!payload?.message || /server error/i.test(payload.message))) {
+      throw new Error("Le serveur Gotfit ne peut pas terminer cette opération pour le moment. Aucun paiement n’a été confirmé. Réessayez plus tard ou contactez le support.");
+    }
     throw new Error(getApiError(payload, "Une erreur est survenue."));
   }
 
@@ -528,6 +531,7 @@ export async function reserveAnnonce(
     reservation_date: string;
     reservation_time: string;
     note?: string;
+    turnstile_token?: string;
   }
 ) {
   const payload = await apiRequest<ReservationPayload>(

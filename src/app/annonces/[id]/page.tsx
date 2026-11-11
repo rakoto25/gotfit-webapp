@@ -1,4 +1,5 @@
 "use client";
+import { PublicTurnstile } from "@/components/security/PublicTurnstile";
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -245,6 +246,8 @@ export default function AnnonceDetailPage() {
   const [reservationDate, setReservationDate] = useState("");
   const [reservationTime, setReservationTime] = useState("");
   const [note, setNote] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -323,15 +326,15 @@ export default function AnnonceDetailPage() {
       setSubmitting(true);
       setError("");
 
-      const createdReservation = await reserveAnnonce(annonceId, {
+      const createdReservation = reservation || await reserveAnnonce(annonceId, {
         reservation_date: reservationDate,
         reservation_time: reservationTime,
         note: note.trim(),
+        turnstile_token: turnstileToken,
       });
 
-      const intent = await createPaymentIntent(createdReservation.id);
-
       setReservation(createdReservation);
+      const intent = await createPaymentIntent(createdReservation.id);
       setPayment(intent);
     } catch (err) {
       setError(
@@ -341,6 +344,8 @@ export default function AnnonceDetailPage() {
         )
       );
     } finally {
+      setTurnstileToken("");
+      setTurnstileResetKey((value) => value + 1);
       setSubmitting(false);
     }
   }
@@ -608,6 +613,7 @@ export default function AnnonceDetailPage() {
                       />
                     </div>
 
+                    <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
                     <button
                       type="submit"
                       disabled={submitting || !reservationDate || !reservationTime || !availableDates.length || !availableStartTimes.length}
