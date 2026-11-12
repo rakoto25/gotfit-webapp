@@ -322,26 +322,34 @@ export default function AnnonceDetailPage() {
 
     if (submitting) return;
 
+    let createdReservation = reservation;
+
     try {
       setSubmitting(true);
       setError("");
 
-      const createdReservation = reservation || await reserveAnnonce(annonceId, {
-        reservation_date: reservationDate,
-        reservation_time: reservationTime,
-        note: note.trim(),
-        turnstile_token: turnstileToken,
-      });
+      if (!createdReservation) {
+        createdReservation = await reserveAnnonce(annonceId, {
+          reservation_date: reservationDate,
+          reservation_time: reservationTime,
+          note: note.trim(),
+          turnstile_token: turnstileToken,
+        });
 
-      setReservation(createdReservation);
+        setReservation(createdReservation);
+      }
+
       const intent = await createPaymentIntent(createdReservation.id);
       setPayment(intent);
     } catch (err) {
+      const detail = getErrorMessage(
+        err,
+        "Impossible de créer la réservation ou le paiement."
+      );
       setError(
-        getErrorMessage(
-          err,
-          "Impossible de créer la réservation ou le paiement."
-        )
+        createdReservation
+          ? `La réservation est enregistrée, mais le paiement n’a pas pu être initialisé : ${detail} Réessayez pour reprendre le paiement.`
+          : detail
       );
     } finally {
       setTurnstileToken("");
@@ -613,7 +621,9 @@ export default function AnnonceDetailPage() {
                       />
                     </div>
 
-                    <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+                    {!reservation && (
+                      <PublicTurnstile onToken={setTurnstileToken} resetKey={turnstileResetKey} />
+                    )}
                     <button
                       type="submit"
                       disabled={submitting || !reservationDate || !reservationTime || !availableDates.length || !availableStartTimes.length}
@@ -624,7 +634,7 @@ export default function AnnonceDetailPage() {
                       ) : (
                         <CreditCard size={18} />
                       )}
-                      Réserver et payer
+                      {reservation ? "Reprendre le paiement" : "Réserver et payer"}
                     </button>
                   </form>
                   </>
